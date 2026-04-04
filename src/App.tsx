@@ -7,6 +7,7 @@ import { BoardView } from './components/board/BoardView'
 import { ItemDetail } from './components/sidebar/ItemDetail'
 import { ComparePanel } from './components/sidebar/ComparePanel'
 import { SchemaEditor } from './components/sidebar/SchemaEditor'
+import { AssignView } from './components/assign/AssignView'
 
 export default function App() {
   const [view, setView] = useState<ViewType>('canvas')
@@ -70,6 +71,7 @@ export default function App() {
             selectedItemId={selectedItemId}
           />
         )}
+        {view === 'assign' && <AssignView />}
 
         {view !== 'canvas' && (comparingIds ? (
           <ComparePanel itemIds={comparingIds} onClose={() => setSelectedIds([])} />

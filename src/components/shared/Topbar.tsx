@@ -1,6 +1,30 @@
 import { useCollectionStore } from '../../store/collectionStore'
 
-export type ViewType = 'canvas' | 'table' | 'board'
+export type ViewType = 'canvas' | 'table' | 'board' | 'assign'
+
+function parseCsv(text: string): string[][] {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  return lines
+    .filter((line) => line.trim() !== '')
+    .map((line) => {
+      const fields: string[] = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+          else inQuotes = !inQuotes
+        } else if (ch === ',' && !inQuotes) {
+          fields.push(current.trim()); current = ''
+        } else {
+          current += ch
+        }
+      }
+      fields.push(current.trim())
+      return fields
+    })
+}
 
 interface TopbarProps {
   view: ViewType
@@ -77,10 +101,79 @@ export function Topbar({ view, onViewChange, onAddItem, onShowSchema }: TopbarPr
     input.click()
   }
 
+  const handleImportCsv = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const text = await file.text()
+      const rows = parseCsv(text)
+      if (rows.length < 2) return
+
+      const COLS = 8
+      const SPACING_X = 140
+      const SPACING_Y = 160
+      const START_X = 80
+
+      const headers = rows[0]
+      const dataRows = rows.slice(1)
+
+      const nameColIdx = (() => {
+        const i = headers.findIndex((h) => h.toLowerCase() === 'name')
+        return i >= 0 ? i : 0
+      })()
+      const descColIdx = headers.findIndex((h) => h.toLowerCase() === 'description')
+
+      // Map each column to a schema field id
+      const fieldIdMap: Record<number, string> = {}
+      for (let ci = 0; ci < headers.length; ci++) {
+        if (ci === nameColIdx || ci === descColIdx) continue
+        const headerLower = headers[ci].toLowerCase()
+        const existingFields = useCollectionStore.getState().collection?.schema.fields ?? []
+        const existing = existingFields.find((f) => f.name.toLowerCase() === headerLower)
+        if (existing) {
+          fieldIdMap[ci] = existing.id
+        } else {
+          useCollectionStore.getState().addField({ name: headers[ci], type: 'text', options: [] })
+          const updated = useCollectionStore.getState().collection?.schema.fields ?? []
+          const newField = [...updated].reverse().find((f) => f.name.toLowerCase() === headerLower)
+          if (newField) fieldIdMap[ci] = newField.id
+        }
+      }
+
+      // Place below existing items
+      const existingItems = useCollectionStore.getState().collection?.items ?? []
+      const maxY = existingItems.length > 0 ? Math.max(...existingItems.map((it) => it.canvas.y)) : -SPACING_Y
+      const baseY = maxY + SPACING_Y
+
+      dataRows.forEach((row, i) => {
+        const name = row[nameColIdx]?.trim() || 'Unnamed'
+        const description = descColIdx >= 0 ? (row[descColIdx]?.trim() ?? '') : ''
+        const fields: Record<string, string> = {}
+        for (const [ciStr, fieldId] of Object.entries(fieldIdMap)) {
+          fields[fieldId] = row[Number(ciStr)]?.trim() ?? ''
+        }
+        const col = i % COLS
+        const rowIdx = Math.floor(i / COLS)
+        useCollectionStore.getState().addItem({
+          name,
+          description,
+          imagePath: '',
+          fields,
+          canvas: { x: START_X + col * SPACING_X, y: baseY + rowIdx * SPACING_Y },
+        })
+      })
+    }
+    input.click()
+  }
+
   const views: { key: ViewType; label: string }[] = [
     { key: 'canvas', label: 'Canvas' },
     { key: 'table', label: 'Table' },
     { key: 'board', label: 'Board' },
+    { key: 'assign', label: 'Assign' },
   ]
 
   return (
@@ -131,6 +224,12 @@ export function Topbar({ view, onViewChange, onAddItem, onShowSchema }: TopbarPr
               className="px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
             >
               + Upload images
+            </button>
+            <button
+              onClick={handleImportCsv}
+              className="px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+            >
+              Import CSV
             </button>
             <button
               onClick={onShowSchema}
