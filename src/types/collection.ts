@@ -1,0 +1,83 @@
+export type FieldType = 'select' | 'multi-select' | 'text' | 'number'
+
+export interface Field {
+  id: string
+  name: string
+  type: FieldType
+  options: string[]
+}
+
+export interface CanvasPosition {
+  x: number
+  y: number
+}
+
+export interface Item {
+  id: string
+  name: string
+  description: string
+  imagePath: string
+  fields: Record<string, string | string[] | number | null>
+  canvas: CanvasPosition
+}
+
+export interface Frame {
+  id: string
+  label: string
+  color: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface Filter {
+  fieldId: string
+  op: 'is' | 'is_not' | 'contains' | 'is_any_of'
+  value: string | string[]
+}
+
+export interface ViewStateTable {
+  sortBy: string | null
+  sortDir: 'asc' | 'desc'
+  filters: Filter[]
+}
+
+export interface ViewStateBoard {
+  groupBy: string | null
+  sortBy: string | null
+  sortDir: 'asc' | 'desc'
+  filters: Filter[]
+}
+
+export interface ViewStateCanvas {
+  zoom: number
+  panX: number
+  panY: number
+  activeFilters: Filter[]
+}
+
+export interface Schema {
+  fields: Field[]
+  cardVisibleFields: string[]
+}
+
+export interface Collection {
+  meta: {
+    id: string
+    name: string
+    version: number
+    createdAt: string
+    updatedAt: string
+  }
+  schema: Schema
+  items: Item[]
+  canvas: {
+    frames: Frame[]
+  }
+  views: {
+    table: ViewStateTable
+    board: ViewStateBoard
+    canvas: ViewStateCanvas
+  }
+}
