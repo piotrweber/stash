@@ -7,7 +7,6 @@ import { BoardView } from './components/board/BoardView'
 import { ItemDetail } from './components/sidebar/ItemDetail'
 import { ComparePanel } from './components/sidebar/ComparePanel'
 import { SchemaEditor } from './components/sidebar/SchemaEditor'
-import { AssignView } from './components/assign/AssignView'
 
 export default function App() {
   const [view, setView] = useState<ViewType>('canvas')
@@ -59,21 +58,15 @@ export default function App() {
             onSelectIds={setSelectedIds}
           />
         )}
-        {view === 'table' && (
-          <TableView
-            onSelectItem={(id) => setSelectedIds([id])}
-            selectedItemId={selectedItemId}
-          />
-        )}
+        {view === 'table' && <TableView />}
         {view === 'board' && (
           <BoardView
             onSelectItem={(id) => setSelectedIds([id])}
             selectedItemId={selectedItemId}
           />
         )}
-        {view === 'assign' && <AssignView />}
 
-        {view !== 'canvas' && (comparingIds ? (
+        {view === 'board' && (comparingIds ? (
           <ComparePanel itemIds={comparingIds} onClose={() => setSelectedIds([])} />
         ) : selectedItemId != null ? (
           <ItemDetail itemId={selectedItemId} onClose={() => setSelectedIds([])} />

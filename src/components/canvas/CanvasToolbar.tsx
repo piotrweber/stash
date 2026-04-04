@@ -16,12 +16,14 @@ interface CanvasToolbarProps {
   onZoomIn: () => void
   onZoomOut: () => void
   onZoomReset: () => void
+  onCleanup: () => void
 }
 
 export function CanvasToolbar({
   tool, onToolChange,
   grid, onGridChange,
   zoom, onZoomIn, onZoomOut, onZoomReset,
+  onCleanup,
 }: CanvasToolbarProps) {
   return (
     <div className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1 bg-white border border-gray-200 rounded-xl shadow-md px-2 py-3 select-none">
@@ -52,6 +54,18 @@ export function CanvasToolbar({
           <span className="text-xs font-medium">{opt.label}</span>
         </ToolBtn>
       ))}
+
+      <Divider />
+
+      {/* Cleanup */}
+      <ToolBtn title="Clean up (arrange in grid)" onClick={onCleanup}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+          <rect x="10" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+          <rect x="1" y="10" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+          <rect x="10" y="10" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+        </svg>
+      </ToolBtn>
 
       <Divider />
 

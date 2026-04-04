@@ -30,9 +30,25 @@ function BoardCard({
   onClick: () => void
   schema: import('../../types/collection').Schema
 }) {
+  const { updateItem } = useCollectionStore()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
   })
+
+  const handleImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => updateItem(item.id, { imagePath: reader.result as string })
+      reader.readAsDataURL(file)
+    }
+    input.click()
+  }
 
   return (
     <div
@@ -48,9 +64,19 @@ function BoardCard({
         isSelected ? 'border-indigo-400 shadow-md' : 'border-gray-200 hover:border-gray-300'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
-      {item.imagePath && (
-        <img src={item.imagePath} alt={item.name} className="w-full h-32 object-contain bg-gray-50" />
-      )}
+      <div
+        onClick={handleImageClick}
+        className="w-full h-32 bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-200 transition-colors"
+        title={item.imagePath ? 'Click to replace image' : 'Click to upload image'}
+      >
+        {item.imagePath ? (
+          <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
+        ) : (
+          <span className="text-4xl font-medium text-gray-300 select-none">
+            {item.name.charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
       <div className="p-3">
         <p className="text-sm font-semibold text-gray-800">{item.name}</p>
         {item.description && (

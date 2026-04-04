@@ -36,7 +36,7 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
   const lastPan = useRef({ x: 0, y: 0 })
   const spaceDown = useRef(false)
 
-  const [tool, setTool] = useState<CanvasTool>('select')
+  const [tool, setTool] = useState<CanvasTool>('pan')
   const [grid, setGrid] = useState(40)
   const [marquee, setMarquee] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null)
 
@@ -195,6 +195,20 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
     moveItem(id, { x: newX, y: newY })
   }
 
+  const handleCleanup = () => {
+    if (!collection) return
+    const COLS = 8
+    const SPACING_X = 160
+    const SPACING_Y = 200
+    const START_X = 80
+    const START_Y = 80
+    collection.items.forEach((item, i) => {
+      const col = i % COLS
+      const row = Math.floor(i / COLS)
+      moveItem(item.id, { x: START_X + col * SPACING_X, y: START_Y + row * SPACING_Y })
+    })
+  }
+
   const centerOfContainer = () => {
     const el = containerRef.current
     if (!el) return { x: 400, y: 300 }
@@ -318,6 +332,7 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
             zoomAt(c.x, c.y, 1 / 1.25)
           }}
           onZoomReset={() => setViewport(1, 0, 0)}
+          onCleanup={handleCleanup}
         />
 
         {/* Single-item popover */}

@@ -1,6 +1,6 @@
 import { useCollectionStore } from '../../store/collectionStore'
 
-export type ViewType = 'canvas' | 'table' | 'board' | 'assign'
+export type ViewType = 'canvas' | 'table' | 'board'
 
 function parseCsv(text: string): string[][] {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
@@ -173,7 +173,6 @@ export function Topbar({ view, onViewChange, onAddItem, onShowSchema }: TopbarPr
     { key: 'canvas', label: 'Canvas' },
     { key: 'table', label: 'Table' },
     { key: 'board', label: 'Board' },
-    { key: 'assign', label: 'Assign' },
   ]
 
   return (
