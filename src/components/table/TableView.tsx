@@ -24,11 +24,23 @@ interface TableViewProps {
 }
 
 export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
-  const { collection, addItem, updateItem, setTableState, renameProject, saveProject, isDirty } = useCollectionStore()
+  const { collection, addItem, updateItem, deleteItem, setTableState, renameProject, saveProject, isDirty } = useCollectionStore()
   const [viewMode, setViewMode] = useState<'catalogue' | 'focus'>('catalogue')
+  const [zoom, setZoom] = useState(1)
+  const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [groupBy, setGroupBy] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overGroup, setOverGroup] = useState<string | null>(null)
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 1.75]
 
   const tableState = collection?.views.table
   const schema = collection?.schema
@@ -131,7 +143,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
 
         {/* ── Fixed header ── */}
         <div className="shrink-0 bg-white border-b border-gray-100">
-          <div className="max-w-3xl mx-auto px-8 pt-8 pb-3">
+          <div className="max-w-4xl mx-auto px-8 pt-8 pb-3">
             {/* Back link */}
             <button
               onClick={onGoToProjects}
@@ -144,62 +156,128 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
             </button>
 
             {/* Title row */}
-            <div className="flex items-center gap-3">
-              <ProjectTitleInput
-                value={collection.meta.name}
-                onSave={(name) => renameProject(name)}
-              />
-              <button
-                onClick={() => {
-                  const json = saveProject()
-                  if (!json || !collection) return
-                  const blob = new Blob([json], { type: 'application/json' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `${collection.meta.name}.json`
-                  a.click()
-                  URL.revokeObjectURL(url)
-                }}
-                className={`shrink-0 text-xs px-2.5 py-1 rounded border transition-colors ${
-                  isDirty
-                    ? 'border-amber-300 text-amber-600 hover:bg-amber-50'
-                    : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
-                }`}
-              >
-                {isDirty ? 'Save' : 'Saved'}
-              </button>
-            </div>
+            <ProjectTitleInput
+              value={collection.meta.name}
+              onSave={(name) => renameProject(name)}
+            />
 
-            {/* Controls row */}
-            <div className="flex items-center gap-1 mt-3 flex-wrap">
-              <button
-                onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-              >
-                + New
-              </button>
-              <FilterSortBar
-                bare
-                sortFields={sortFields}
-                filterFields={filterFields}
-                schemaFields={fields}
-                sortBy={tableState.sortBy}
-                sortDir={tableState.sortDir}
-                onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
-                filters={tableState.filters}
-                onFiltersChange={(f) => setTableState({ filters: f })}
-                groupBy={groupBy}
-                onGroupByChange={setGroupBy}
-                groupableFields={groupableFields}
-                endSlot={<ViewModeToggle mode={viewMode} onChange={setViewMode} />}
-              />
+            {/* Controls row — bulk bar or regular toolbar */}
+            {selectedIds.size > 0 ? (
+              <div className="mt-4">
+                <BulkActionBar
+                  count={selectedIds.size}
+                  fields={fields}
+                  selectedIds={selectedIds}
+                  onClear={clearSelection}
+                  onDelete={(ids) => {
+                    ids.forEach((id) => deleteItem(id))
+                    clearSelection()
+                  }}
+                  onSetField={(fieldId, value) => {
+                    selectedIds.forEach((id) => {
+                      const item = collection.items.find((it) => it.id === id)
+                      if (item) updateItem(id, { fields: { ...item.fields, [fieldId]: value } })
+                    })
+                  }}
+                />
+              </div>
+            ) : (
+            <div className="flex items-center gap-2 mt-4">
+
+              {/* Group 1: Data */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                >
+                  + New
+                </button>
+                <button
+                  onClick={() => {
+                    const json = saveProject()
+                    if (!json || !collection) return
+                    const blob = new Blob([json], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${collection.meta.name}.json`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                    isDirty
+                      ? 'border-amber-300 text-amber-600 hover:bg-amber-50'
+                      : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
+                  }`}
+                >
+                  {isDirty ? 'Save' : 'Saved'}
+                </button>
+              </div>
+
+              <div className="w-px h-4 bg-gray-200 mx-1" />
+
+              {/* Group 2: View */}
+              <div className="flex items-center gap-1">
+                <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
+                {viewMode === 'catalogue' && (
+                  <>
+                    <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                    <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
+                    {grouped && (
+                      <>
+                        <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                        <button
+                          onClick={() => setAllCollapsed((v) => v === true ? null : true)}
+                          title="Collapse all"
+                          className={`p-1 rounded transition-colors ${allCollapsed === true ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 6h10M3 10h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                            <path d="M11 8l2-2 2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setAllCollapsed((v) => v === false ? null : false)}
+                          title="Expand all"
+                          className={`p-1 rounded transition-colors ${allCollapsed === false ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 5h10M3 9h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                            <path d="M11 11l2 2 2-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="w-px h-4 bg-gray-200 mx-1" />
+
+              {/* Group 3: Filter/Sort/Group */}
+              <div className="ml-auto">
+                <FilterSortBar
+                  bare
+                  sortFields={sortFields}
+                  filterFields={filterFields}
+                  schemaFields={fields}
+                  sortBy={tableState.sortBy}
+                  sortDir={tableState.sortDir}
+                  onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
+                  filters={tableState.filters}
+                  onFiltersChange={(f) => setTableState({ filters: f })}
+                  groupBy={groupBy}
+                  onGroupByChange={(id) => { setGroupBy(id); setAllCollapsed(null) }}
+                  groupableFields={groupableFields}
+                />
+              </div>
             </div>
+            )}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-8">
+          <div className="max-w-4xl mx-auto px-8">
 
             {/* ── Content ── */}
             {viewMode === 'focus' ? (
@@ -228,7 +306,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                 )}
               </div>
             ) : (
-              <div className="pt-4 pb-8 flex flex-col gap-6">
+              <div className="pt-4 pb-8 flex flex-col gap-6" style={{ zoom }}>
                 {grouped ? (
                   <>
                     {grouped.map(({ key, items }) => (
@@ -242,6 +320,9 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                         onUpdate={(id, patch) => updateItem(id, patch)}
                         groupField={groupField}
                         collection={collection}
+                        collapsedOverride={allCollapsed}
+                        selectedIds={selectedIds}
+                        onToggleSelect={toggleSelect}
                       />
                     ))}
                   </>
@@ -253,6 +334,8 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                         item={item}
                         fields={fields}
                         draggable={false}
+                        selected={selectedIds.has(item.id)}
+                        onToggleSelect={() => toggleSelect(item.id)}
                         onUpdate={(patch) => updateItem(item.id, patch)}
                       />
                     ))}
@@ -284,7 +367,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
 // ─── Group section ────────────────────────────────────────────────────────────
 
 function GroupSection({
-  groupKey, items, fields, isOver, isDragging, onUpdate, groupField, collection,
+  groupKey, items, fields, isOver, isDragging, onUpdate, groupField, collection, collapsedOverride, selectedIds, onToggleSelect,
 }: {
   groupKey: string
   items: Item[]
@@ -294,10 +377,19 @@ function GroupSection({
   onUpdate: (id: string, patch: Partial<Item>) => void
   groupField?: Field
   collection: Collection | null
+  collapsedOverride?: boolean | null
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
 }) {
   const { updateField, updateItem } = useCollectionStore()
   const { setNodeRef } = useDroppable({ id: groupKey })
   const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (collapsedOverride !== null && collapsedOverride !== undefined) {
+      setCollapsed(collapsedOverride)
+    }
+  }, [collapsedOverride])
   const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null)
   const chipRef = useRef<HTMLButtonElement>(null)
 
@@ -411,6 +503,8 @@ function GroupSection({
                 item={item}
                 fields={fields}
                 draggable
+                selected={selectedIds.has(item.id)}
+                onToggleSelect={() => onToggleSelect(item.id)}
                 onUpdate={(patch) => onUpdate(item.id, patch)}
               />
             ))
@@ -565,11 +659,13 @@ function AddCategoryRow({ field }: { field: Field }) {
 // ─── Item card ────────────────────────────────────────────────────────────────
 
 function ItemCard({
-  item, fields, draggable, onUpdate,
+  item, fields, draggable, selected, onToggleSelect, onUpdate,
 }: {
   item: Item
   fields: Field[]
   draggable: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
   onUpdate: (patch: Partial<Item>) => void
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -580,15 +676,27 @@ function ItemCard({
   return (
     <div
       ref={setNodeRef}
-      className={`bg-white rounded-xl border border-gray-200 shadow-sm transition-all ${
-        isDragging ? 'opacity-0' : 'hover:shadow-md hover:border-gray-300'
-      }`}
+      className={`bg-white rounded-xl border shadow-sm transition-all ${
+        isDragging ? 'opacity-0' : 'hover:shadow-md'
+      } ${selected ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200 hover:border-gray-300'}`}
     >
       <div className="flex items-start">
+        {/* Checkbox */}
+        <div className="flex items-center justify-center self-stretch pl-2.5 pr-1 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSelect?.() }}
+            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+              selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 hover:border-indigo-400'
+            }`}
+          >
+            {selected && <span className="text-white text-[9px] leading-none">✓</span>}
+          </button>
+        </div>
+
         {/* Drag handle */}
         <div
           {...(draggable ? { ...attributes, ...listeners } : {})}
-          className={`flex items-center justify-center self-stretch px-2.5 shrink-0 rounded-l-xl ${draggable ? 'cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 hover:bg-gray-50' : 'text-transparent'}`}
+          className={`flex items-center justify-center self-stretch px-2 shrink-0 ${draggable ? 'cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600' : 'text-transparent'}`}
         >
           <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
             <circle cx="3.5" cy="3.5" r="1.2" fill="currentColor"/>
@@ -938,6 +1046,53 @@ function ImageCell({ item, onUpdate, size = 'md' }: { item: Item; onUpdate: (pat
 
 // ─── View mode toggle ─────────────────────────────────────────────────────────
 
+// ─── Zoom control ─────────────────────────────────────────────────────────────
+
+function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[]; onChange: (z: number) => void }) {
+  const idx = steps.indexOf(zoom)
+  const canDec = idx > 0
+  const canInc = idx < steps.length - 1
+  const label = zoom === 1 ? '100%' : `${Math.round(zoom * 100)}%`
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <button
+        onClick={() => canDec && onChange(steps[idx - 1])}
+        disabled={!canDec}
+        className="p-1 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-default transition-colors"
+        title="Zoom out"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M5 7h4M11 11l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      </button>
+      {zoom !== 1 && (
+        <button
+          onClick={() => onChange(1)}
+          className="text-[10px] font-medium text-gray-400 hover:text-gray-700 px-1 transition-colors"
+          title="Reset zoom"
+        >
+          {label}
+        </button>
+      )}
+      <button
+        onClick={() => canInc && onChange(steps[idx + 1])}
+        disabled={!canInc}
+        className="p-1 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-default transition-colors"
+        title="Zoom in"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M5 7h4M7 5v4M11 11l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// ─── View mode toggle ─────────────────────────────────────────────────────────
+
 function ViewModeToggle({ mode, onChange }: {
   mode: 'catalogue' | 'focus'
   onChange: (m: 'catalogue' | 'focus') => void
@@ -1168,5 +1323,156 @@ function UploadImagesButton() {
     >
       Upload images
     </button>
+  )
+}
+
+// ─── Bulk action bar ──────────────────────────────────────────────────────────
+
+function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetField }: {
+  count: number
+  fields: Field[]
+  selectedIds: Set<string>
+  onClear: () => void
+  onDelete: (ids: string[]) => void
+  onSetField: (fieldId: string, value: string | null) => void
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [openFieldId, setOpenFieldId] = useState<string | null>(null)
+  const fieldRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [fieldMenuPos, setFieldMenuPos] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    if (!openFieldId) return
+    const handler = (e: MouseEvent) => {
+      const btn = fieldRefs.current[openFieldId]
+      if (btn && !btn.contains(e.target as Node)) setOpenFieldId(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openFieldId])
+
+  const selectFields = fields.filter((f) => f.type === 'select' || f.type === 'multi-select')
+
+  const openFieldMenu = (fieldId: string) => {
+    const btn = fieldRefs.current[fieldId]
+    if (!btn) return
+    const r = btn.getBoundingClientRect()
+    setFieldMenuPos({ top: r.bottom + 6, left: r.left })
+    setOpenFieldId(fieldId)
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2">
+        {/* Counter + deselect */}
+        <button onClick={onClear} className="flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-900 transition-colors shrink-0">
+          <span className="w-5 h-5 bg-indigo-600 text-white rounded flex items-center justify-center text-[11px] font-bold">{count}</span>
+          selected
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        </button>
+
+        <div className="w-px h-4 bg-indigo-200 mx-1" />
+
+        {/* Field dropdowns */}
+        {selectFields.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-xs text-indigo-500 font-medium">Set:</span>
+            {selectFields.map((f) => (
+              <button
+                key={f.id}
+                ref={(el) => { fieldRefs.current[f.id] = el }}
+                onClick={() => openFieldMenu(f.id)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                  openFieldId === f.id
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                }`}
+              >
+                {f.name}
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="ml-auto" />
+
+        {/* Delete */}
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
+          title="Delete selected"
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Delete
+        </button>
+      </div>
+
+      {/* Field option menu */}
+      {openFieldId && fieldMenuPos && (() => {
+        const field = fields.find((f) => f.id === openFieldId)!
+        return createPortal(
+          <div
+            style={{ position: 'fixed', top: fieldMenuPos.top, left: fieldMenuPos.left, zIndex: 9999, minWidth: 160 }}
+            className="bg-white border border-gray-200 rounded-xl shadow-xl py-1"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-1.5 border-b border-gray-100">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{field.name}</span>
+            </div>
+            <button
+              onClick={() => { onSetField(field.id, null); setOpenFieldId(null) }}
+              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50"
+            >
+              — none
+            </button>
+            {field.options.map((opt) => {
+              const style = optionStyle(field.optionColors?.[opt])
+              return (
+                <button
+                  key={opt}
+                  onClick={() => { onSetField(field.id, opt); setOpenFieldId(null) }}
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-gray-50"
+                >
+                  <span style={{ ...style, border: `1px solid ${style.borderColor}` }} className="text-[11px] px-2 py-0.5 rounded-full font-medium">
+                    {opt}
+                  </span>
+                </button>
+              )
+            })}
+          </div>,
+          document.body,
+        )
+      })()}
+
+      {/* Delete confirm modal */}
+      {confirmDelete && createPortal(
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]" onClick={() => setConfirmDelete(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[360px] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Delete {count} {count === 1 ? 'item' : 'items'}?</h2>
+              <p className="text-sm text-gray-500 mt-1">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setConfirmDelete(false); onDelete([...selectedIds]) }}
+                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
