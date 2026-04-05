@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { nanoid } from 'nanoid'
 import type {
   Collection, Item, Field, Frame,
@@ -23,6 +24,7 @@ interface CollectionStore {
   openProject: (id: string) => void
   closeProject: () => void
   deleteProject: (id: string) => void
+  duplicateProject: (id: string) => void
   saveProject: () => string | null
 
   // Item actions
@@ -111,9 +113,55 @@ function parseCsv(text: string): string[][] {
     })
 }
 
+// ─── IndexedDB storage adapter (no 5 MB limit) ────────────────────────────────
+
+const IDB_DB = 'collectible-organiser'
+const IDB_STORE = 'kv'
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_DB, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+const idbStorage = createJSONStorage<CollectionStore>(() => ({
+  getItem: async (key: string) => {
+    const db = await openDb()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly')
+      const req = tx.objectStore(IDB_STORE).get(key)
+      req.onsuccess = () => resolve(req.result ?? null)
+      req.onerror = () => reject(req.error)
+    })
+  },
+  setItem: async (key: string, value: string) => {
+    const db = await openDb()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite')
+      const req = tx.objectStore(IDB_STORE).put(value, key)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  },
+  removeItem: async (key: string) => {
+    const db = await openDb()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite')
+      const req = tx.objectStore(IDB_STORE).delete(key)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  },
+}))
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useCollectionStore = create<CollectionStore>((set, get) => ({
+export const useCollectionStore = create<CollectionStore>()(
+  persist(
+    (set, get) => ({
   projects: [],
   activeProjectId: null,
   isDirty: false,
@@ -247,6 +295,17 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
         ...(isActive ? { activeProjectId: null, collection: null, isDirty: false } : {}),
       }
     })
+  },
+
+  duplicateProject: (id) => {
+    const project = get().projects.find((p) => p.meta.id === id)
+    if (!project) return
+    const now = new Date().toISOString()
+    const copy: Collection = {
+      ...JSON.parse(JSON.stringify(project)),
+      meta: { ...project.meta, id: nanoid(), name: project.meta.name + ' (copy)', createdAt: now, updatedAt: now },
+    }
+    set((s) => ({ projects: [...s.projects, copy] }))
   },
 
   saveProject: () => {
@@ -401,4 +460,19 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       return { projects, activeProjectId: col.meta.id, collection: col, isDirty: false }
     })
   },
-}))
+    }),
+    {
+      name: 'collectible-organiser-v1',
+      storage: idbStorage,
+      // Don't persist isDirty — it should always start false after a reload
+      partialize: (s) => ({
+        projects: s.projects,
+        activeProjectId: s.activeProjectId,
+        collection: s.collection,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) state.isDirty = false
+      },
+    }
+  )
+)

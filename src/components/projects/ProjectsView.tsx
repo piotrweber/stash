@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useCollectionStore } from '../../store/collectionStore'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -6,8 +7,13 @@ interface ProjectsViewProps {
   onOpen: (id: string) => void
 }
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export function ProjectsView({ onOpen }: ProjectsViewProps) {
-  const { projects, createBlankProject, createProjectFromCsv, createProjectFromImages, deleteProject, loadSample } = useCollectionStore()
+  const { projects, createBlankProject, createProjectFromCsv, createProjectFromImages, deleteProject, duplicateProject, loadSample } = useCollectionStore()
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
 
   const handleNewBlank = () => {
     const name = prompt('Project name:', 'Untitled project')
@@ -80,6 +86,13 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
     deleteProject(id)
   }
 
+  const handleDuplicate = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    duplicateProject(id)
+  }
+
+  const sorted = [...projects].reverse()
+
   return (
     <div className="flex-1 overflow-y-auto bg-background min-h-0">
       <div className="max-w-4xl mx-auto px-8 py-12">
@@ -90,41 +103,23 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
             <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your collections</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { loadSample(); onOpen(useCollectionStore.getState().activeProjectId!) }}
-          >
-            Load sample
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { loadSample(); onOpen(useCollectionStore.getState().activeProjectId!) }}
+            >
+              Load sample
+            </Button>
+          </div>
         </div>
 
         {/* Create cards */}
         <div className="grid grid-cols-4 gap-3 mb-12">
-          <CreateCard
-            icon={<PlusIcon />}
-            label="New project"
-            description="Start from scratch"
-            onClick={handleNewBlank}
-          />
-          <CreateCard
-            icon={<CsvIcon />}
-            label="Import CSV"
-            description="From spreadsheet"
-            onClick={handleFromCsv}
-          />
-          <CreateCard
-            icon={<ImagesIcon />}
-            label="Upload images"
-            description="One item per image"
-            onClick={handleFromImages}
-          />
-          <CreateCard
-            icon={<OpenIcon />}
-            label="Open file"
-            description="Load a .json file"
-            onClick={handleLoadFile}
-          />
+          <CreateCard icon={<PlusIcon />} label="New project" description="Start from scratch" onClick={handleNewBlank} />
+          <CreateCard icon={<CsvIcon />} label="Import CSV" description="From spreadsheet" onClick={handleFromCsv} />
+          <CreateCard icon={<ImagesIcon />} label="Upload images" description="One item per image" onClick={handleFromImages} />
+          <CreateCard icon={<OpenIcon />} label="Open file" description="Load a .json file" onClick={handleLoadFile} />
         </div>
 
         {/* Projects list */}
@@ -133,53 +128,137 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
             <div className="flex items-center gap-3 mb-4">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
               <Separator className="flex-1" />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              {[...projects].reverse().map((project) => (
+              {/* View toggle */}
+              <div className="flex items-center rounded-md border border-border overflow-hidden">
                 <button
-                  key={project.meta.id}
-                  onClick={() => onOpen(project.meta.id)}
-                  className="group relative bg-card rounded-xl border border-border text-left hover:border-primary/40 hover:shadow-md transition-all duration-150 overflow-hidden"
+                  onClick={() => setViewMode('grid')}
+                  title="Grid view"
+                  className={`flex items-center justify-center w-7 h-6 transition-colors ${
+                    viewMode === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
                 >
-                  {/* Delete */}
-                  <button
-                    onClick={(e) => handleDelete(e, project.meta.id, project.meta.name)}
-                    className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                  >
-                    ×
-                  </button>
-
-                  {/* Preview strip */}
-                  <div className="flex gap-1.5 p-4 pb-3 h-20 overflow-hidden">
-                    {project.items.slice(0, 5).map((item) =>
-                      item.imagePath ? (
-                        <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 overflow-hidden bg-muted">
-                          <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
-                        </div>
-                      ) : (
-                        <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 bg-muted flex items-center justify-center">
-                          <span className="text-sm font-semibold text-muted-foreground">{item.name.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )
-                    )}
-                    {project.items.length === 0 && (
-                      <div className="w-full h-12 rounded-lg bg-muted/50 flex items-center justify-center">
-                        <span className="text-xs text-muted-foreground">Empty</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="px-4 pb-4">
-                    <p className="text-sm font-semibold text-foreground truncate pr-6">{project.meta.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {project.items.length} {project.items.length === 1 ? 'item' : 'items'}
-                      {project.schema.fields.length > 0 && ` · ${project.schema.fields.length} fields`}
-                    </p>
-                  </div>
+                  <GridIcon />
                 </button>
-              ))}
+                <div className="w-px h-4 bg-border" />
+                <button
+                  onClick={() => setViewMode('table')}
+                  title="Table view"
+                  className={`flex items-center justify-center w-7 h-6 transition-colors ${
+                    viewMode === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <ListIcon />
+                </button>
+              </div>
             </div>
+
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-3 gap-4">
+                {sorted.map((project) => (
+                  <button
+                    key={project.meta.id}
+                    onClick={() => onOpen(project.meta.id)}
+                    className="group relative bg-card rounded-xl border border-border text-left hover:border-primary/40 hover:shadow-md transition-all duration-150 overflow-hidden cursor-pointer"
+                  >
+                    {/* Delete */}
+                    <button
+                      onClick={(e) => handleDelete(e, project.meta.id, project.meta.name)}
+                      className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
+                    >
+                      ×
+                    </button>
+
+                    {/* Preview strip */}
+                    <div className="flex gap-1.5 p-4 pb-3 h-20 overflow-hidden">
+                      {project.items.slice(0, 5).map((item) =>
+                        item.imagePath ? (
+                          <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 overflow-hidden bg-muted">
+                            <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
+                          </div>
+                        ) : (
+                          <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 bg-muted flex items-center justify-center">
+                            <span className="text-sm font-semibold text-muted-foreground">{item.name.charAt(0).toUpperCase()}</span>
+                          </div>
+                        )
+                      )}
+                      {project.items.length === 0 && (
+                        <div className="w-full h-12 rounded-lg bg-muted/50 flex items-center justify-center">
+                          <span className="text-xs text-muted-foreground">Empty</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="px-4 pb-4">
+                      <p className="text-sm font-semibold text-foreground truncate pr-6">{project.meta.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {project.items.length} {project.items.length === 1 ? 'item' : 'items'}
+                        {project.schema.fields.length > 0 && ` · ${project.schema.fields.length} fields`}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border">
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Items</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fields</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Updated</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {sorted.map((project) => (
+                      <tr
+                        key={project.meta.id}
+                        className="group bg-card hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => onOpen(project.meta.id)}
+                            className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer text-left"
+                          >
+                            {project.meta.name}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {project.items.length}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {project.schema.fields.length}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
+                          {formatDate(project.meta.updatedAt)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => handleDuplicate(e, project.meta.id)}
+                              title="Duplicate"
+                              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+                            >
+                              <DuplicateIcon />
+                              Duplicate
+                            </button>
+                            <button
+                              onClick={(e) => handleDelete(e, project.meta.id, project.meta.name)}
+                              title="Delete"
+                              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
+                            >
+                              <TrashIcon />
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         )}
 
@@ -203,7 +282,7 @@ function CreateCard({ icon, label, description, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-start gap-3 bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover:shadow-md transition-all duration-150 group"
+      className="flex flex-col items-start gap-3 bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover:shadow-md transition-all duration-150 group cursor-pointer"
     >
       <span className="text-muted-foreground group-hover:text-primary transition-colors">{icon}</span>
       <div>
@@ -248,6 +327,42 @@ function OpenIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M17 8l-5-5-5 5M12 3v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function GridIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+    </svg>
+  )
+}
+
+function ListIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+function DuplicateIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M3 11V3h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M2.5 4h11M6 4V3h4v1M4.5 4l.5 9h6l.5-9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
 }

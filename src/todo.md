@@ -18,8 +18,9 @@ Project page:
 - toggle card view and table view: table view is for managing projects (duplicate, delete)
 - Add a "+New" project button that opens a drop down with all the available options that sits on the table / card view
 
-New item
-A new item should be added in a stick row above the first row so that we don't need to consider sorting grouping and so on. Users can edit it (depending on the mode they are in) and then thythey click "Add" or "Cancel". Adding will move the item down to the top if no filter, sort or grouping is added or to the right place if any of these is on. Cancel will dismiss it without confirmation.
+Clicking on New project should jump into the project view with Untilted project
+
+Add card view
 
 
 Bulk selection should be applied after users change an option
