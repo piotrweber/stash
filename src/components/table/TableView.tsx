@@ -13,6 +13,8 @@ import {
   useDroppable,
 } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useCollectionStore } from '../../store/collectionStore'
 import { FilterSortBar } from '../shared/FilterSortBar'
 import { applyFilters, applySort } from '../shared/filterSort'
@@ -23,12 +25,11 @@ import type { Item, Field, Collection } from '../../types/collection'
 
 interface TableViewProps {
   onGoToProjects: () => void
-  onShowSchema: () => void
 }
 
-export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
-  const { collection, addItem, updateItem, deleteItem, setTableState, renameProject, saveProject, isDirty } = useCollectionStore()
-  const [viewMode, setViewMode] = useState<'catalogue' | 'focus'>('catalogue')
+export function TableView({ onGoToProjects }: TableViewProps) {
+  const { collection, addItem, updateItem, deleteItem, reorderItems, setTableState, renameProject, saveProject, isDirty } = useCollectionStore()
+  const [viewMode, setViewMode] = useState<'catalogue' | 'focus' | 'cards'>('catalogue')
   const [zoom, setZoom] = useState(1)
   const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -124,7 +125,17 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setDraggingId(null)
     setOverGroup(null)
-    if (!over || !groupBy || !collection) return
+    if (!over || !collection) return
+    if (viewMode === 'cards') {
+      if (active.id === over.id) return
+      const items = collection.items
+      const oldIdx = items.findIndex((it) => it.id === active.id)
+      const newIdx = items.findIndex((it) => it.id === over.id)
+      if (oldIdx === -1 || newIdx === -1) return
+      reorderItems(arrayMove(items, oldIdx, newIdx).map((it) => it.id))
+      return
+    }
+    if (!groupBy) return
     const targetGroup = over.id as string
     const item = collection.items.find((it) => it.id === active.id)
     if (!item) return
@@ -231,9 +242,9 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
               {/* Group 2: View */}
               <div className="flex items-center gap-1">
                 <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
-                {viewMode === 'catalogue' && (
+                {(viewMode === 'catalogue' || viewMode === 'cards') && (
                   <>
-                    <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                    <div className="w-px h-4 bg-border mx-0.5" />
                     <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
                     {grouped && (
                       <>
@@ -314,7 +325,29 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
             )}
 
             {/* ── Content ── */}
-            {viewMode === 'focus' ? (
+            {viewMode === 'cards' ? (
+              <SortableContext items={collection.items.map((it) => it.id)} strategy={rectSortingStrategy}>
+                <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
+                  {grouped ? (
+                    grouped.map(({ key, items }) => (
+                      <CardGroupSection
+                        key={key}
+                        groupKey={key}
+                        items={items}
+                        groupField={groupField}
+                        collapsedOverride={allCollapsed}
+                      />
+                    ))
+                  ) : (
+                    <div className="grid grid-cols-8 gap-3">
+                      {collection.items.map((item) => (
+                        <SortableCard key={item.id} item={item} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </SortableContext>
+            ) : viewMode === 'focus' ? (
               <div className={`flex flex-col ${draft ? 'pb-8' : 'py-6'}`}>
                 {grouped ? (
                   grouped.map(({ key, items }) => (
@@ -384,14 +417,15 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
 
       <DragOverlay>
         {draggingItem && (
-          <div className="opacity-90 rotate-1 shadow-2xl">
-            <ItemCard
-              item={draggingItem}
-              fields={fields}
-              draggable={false}
-              onUpdate={() => {}}
-            />
-          </div>
+          viewMode === 'cards' ? (
+            <div className="opacity-90 rotate-1 shadow-2xl w-24">
+              <SortableCard item={draggingItem} overlay />
+            </div>
+          ) : (
+            <div className="opacity-90 rotate-1 shadow-2xl">
+              <ItemCard item={draggingItem} fields={fields} draggable={false} onUpdate={() => {}} />
+            </div>
+          )
         )}
       </DragOverlay>
     </DndContext>
@@ -490,35 +524,31 @@ function GroupSection({
       }`}
     >
       {/* Group header */}
-      <div className="flex items-center gap-2.5 px-2 pb-2">
-        <button
-          onClick={() => setCollapsed((v) => !v)}
-          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+      <div
+        className="flex items-center gap-2.5 px-2 py-2 mb-1 rounded-lg cursor-pointer select-none hover:bg-muted/50 transition-colors"
+        onClick={() => setCollapsed((v) => !v)}
+      >
+        <svg
+          width="12" height="12" viewBox="0 0 14 14" fill="none"
+          className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}
         >
-          <svg
-            width="14" height="14" viewBox="0 0 14 14" fill="none"
-            className={`transition-transform ${collapsed ? '-rotate-90' : ''}`}
-          >
-            <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
 
         {isEditableGroup && chipStyle ? (
           <button
             ref={chipRef}
-            onClick={handleChipClick}
-            style={{ ...chipStyle, border: `1px solid ${chipStyle.borderColor}` }}
-            className="text-sm font-semibold px-2.5 py-0.5 rounded-full hover:opacity-80 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); handleChipClick(e) }}
+            style={{ color: chipStyle.color }}
+            className="font-semibold text-base hover:opacity-70 transition-opacity"
           >
             {groupKey}
           </button>
         ) : (
-          <span className="text-sm font-semibold text-muted-foreground">{groupKey}</span>
+          <span className="font-semibold text-base text-foreground">{groupKey}</span>
         )}
 
-        <span className="text-xs font-semibold text-muted-foreground bg-muted rounded-full px-2 py-0.5 min-w-[24px] text-center">
-          {items.length}
-        </span>
+        <span className="text-sm text-muted-foreground">{items.length}</span>
       </div>
 
       {/* Cards */}
@@ -653,40 +683,281 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
   )
 }
 
-// ─── Add category row ─────────────────────────────────────────────────────────
+// ─── Field header row ─────────────────────────────────────────────────────────
 
-function AddCategoryRow({ field }: { field: Field }) {
-  const { updateField } = useCollectionStore()
-  const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+const FIELD_TYPES: { type: Field['type']; label: string }[] = [
+  { type: 'text', label: 'Text' },
+  { type: 'number', label: 'Number' },
+  { type: 'select', label: 'Select' },
+  { type: 'multi-select', label: 'Multi-select' },
+]
 
-  const add = () => {
-    const v = value.trim()
-    if (!v || field.options.includes(v)) { setValue(''); return }
-    updateField(field.id, { options: [...field.options, v] })
-    setValue('')
-    inputRef.current?.focus()
-  }
+
+// ─── Field cells (fields section of each catalogue row) ──────────────────────
+
+function FieldCells({ fields, itemFields, onChange }: {
+  fields: Field[]
+  itemFields: Item['fields']
+  onChange: (fieldId: string, v: Item['fields'][string]) => void
+}) {
+  const { addField, updateField, deleteField } = useCollectionStore()
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
+  const labelRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const addBtnRef = useRef<HTMLButtonElement>(null)
+
+  const editingField = editingId ? fields.find((f) => f.id === editingId) : null
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1">
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') add() }}
-        placeholder="+ Add category…"
-        className="text-xs text-gray-500 placeholder-gray-300 bg-transparent border-none outline-none focus:text-gray-700 w-40"
-      />
-      {value && (
+    <div className="flex items-stretch flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+      <div className="flex items-start divide-x divide-border/60">
+        {fields.map((field) => (
+          <div
+            key={field.id}
+            ref={(el) => { labelRefs.current[field.id] = el }}
+            onClick={() => {
+              const el = labelRefs.current[field.id]
+              if (!el) return
+              setEditAnchor(el.getBoundingClientRect())
+              setEditingId(field.id)
+            }}
+            className="flex flex-col min-w-[120px] shrink-0 hover:bg-muted/30 transition-colors cursor-pointer"
+          >
+            <span className="px-3 pt-3 pb-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+              {field.name}
+            </span>
+            <div className="px-3 pb-3" onClick={(e) => e.stopPropagation()}>
+              <FieldChip
+                field={field}
+                value={itemFields[field.id] ?? null}
+                onChange={(v) => onChange(field.id, v)}
+              />
+            </div>
+          </div>
+        ))}
+        {/* + New field cell */}
         <button
-          onClick={add}
-          className="text-xs text-indigo-600 hover:text-indigo-800 transition-colors font-medium"
+          ref={addBtnRef}
+          onClick={() => {
+            if (!addBtnRef.current) return
+            setAddAnchor(addBtnRef.current.getBoundingClientRect())
+            setAddOpen(true)
+          }}
+          className="flex items-center px-3 self-stretch min-w-[120px] text-[10px] font-medium text-muted-foreground/50 hover:text-primary hover:bg-muted/40 transition-colors whitespace-nowrap shrink-0"
         >
-          Add
+          + New
         </button>
+      </div>
+
+      {editingField && editAnchor && (
+        <FieldEditPopover
+          field={editingField}
+          anchor={editAnchor}
+          onClose={() => { setEditingId(null); setEditAnchor(null) }}
+          onRename={(name) => updateField(editingField.id, { name })}
+          onDelete={() => { deleteField(editingField.id); setEditingId(null); setEditAnchor(null) }}
+          value={itemFields[editingField.id] ?? null}
+          onValueChange={(v) => onChange(editingField.id, v)}
+        />
+      )}
+      {addOpen && addAnchor && (
+        <AddFieldPopover
+          anchor={addAnchor}
+          onClose={() => { setAddOpen(false); setAddAnchor(null) }}
+          onAdd={(name, type) => { addField({ name, type, options: [] }); setAddOpen(false); setAddAnchor(null) }}
+        />
       )}
     </div>
+  )
+}
+
+function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, onValueChange }: {
+  field: Field
+  anchor: DOMRect
+  onClose: () => void
+  onRename: (name: string) => void
+  onDelete: () => void
+  value: Item['fields'][string]
+  onValueChange: (v: Item['fields'][string]) => void
+}) {
+  const [name, setName] = useState(field.name)
+  const popRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) {
+        if (name.trim() && name !== field.name) onRename(name.trim())
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [name, field.name, onRename, onClose])
+
+  const commit = () => {
+    if (name.trim() && name !== field.name) onRename(name.trim())
+    onClose()
+  }
+
+  const hasOptions = (field.type === 'select' || field.type === 'multi-select') && field.options.length > 0
+  const selected: string[] = field.type === 'multi-select' ? (Array.isArray(value) ? value as string[] : []) : []
+  const selectedSingle = field.type === 'select' ? (value as string | null) : null
+
+  const top = Math.min(anchor.bottom + 6, window.innerHeight - 320)
+  const left = Math.min(anchor.left, window.innerWidth - 230)
+
+  return createPortal(
+    <div
+      ref={popRef}
+      style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
+      className="bg-popover border border-border rounded-xl shadow-lg overflow-hidden"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {/* Rename + delete row */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commit() }
+            if (e.key === 'Escape') onClose()
+          }}
+          className="flex-1 min-w-0 border border-border rounded-lg px-2.5 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:border-primary/50"
+        />
+        <button
+          onClick={onDelete}
+          className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors p-1"
+          title="Delete field"
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Options list */}
+      {hasOptions && (
+        <>
+          <div className="h-px bg-border mx-3 mb-1" />
+          <div className="py-1 max-h-52 overflow-y-auto">
+            {field.type === 'select' && (
+              <>
+                <button
+                  onClick={() => { onValueChange(null) }}
+                  className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
+                >
+                  — none
+                  {selectedSingle === null && <span className="ml-auto text-primary text-[10px]">✓</span>}
+                </button>
+                {field.options.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => { onValueChange(opt === selectedSingle ? null : opt) }}
+                    className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-muted/50"
+                  >
+                    <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
+                    {opt === selectedSingle && <span className="ml-auto text-primary text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </>
+            )}
+            {field.type === 'multi-select' && field.options.map((opt) => {
+              const active = selected.includes(opt)
+              return (
+                <button
+                  key={opt}
+                  onClick={() => onValueChange(active ? selected.filter((s) => s !== opt) : [...selected, opt])}
+                  className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-muted/50"
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${active ? 'bg-primary border-primary' : 'border-border'}`}>
+                    {active && <span className="text-primary-foreground text-[9px] leading-none">✓</span>}
+                  </span>
+                  <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+      <div className="pb-2" />
+    </div>,
+    document.body,
+  )
+}
+
+function AddFieldPopover({ anchor, onClose, onAdd }: {
+  anchor: DOMRect
+  onClose: () => void
+  onAdd: (name: string, type: Field['type']) => void
+}) {
+  const [name, setName] = useState('')
+  const [type, setType] = useState<Field['type']>('text')
+  const popRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  const commit = () => {
+    if (!name.trim()) return
+    onAdd(name.trim(), type)
+  }
+
+  const top = Math.min(anchor.bottom + 6, window.innerHeight - 260)
+  const left = Math.min(anchor.left, window.innerWidth - 220)
+
+  return createPortal(
+    <div
+      ref={popRef}
+      style={{ position: 'fixed', top, left, zIndex: 9999, width: 210 }}
+      className="bg-popover border border-border rounded-xl shadow-lg p-3 flex flex-col gap-3"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={inputRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit() }
+          if (e.key === 'Escape') onClose()
+        }}
+        placeholder="Field name"
+        className="w-full border border-border rounded-lg px-2.5 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/50"
+      />
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Type</p>
+        <div className="grid grid-cols-2 gap-1">
+          {FIELD_TYPES.map(({ type: t, label }) => (
+            <button
+              key={t}
+              onClick={() => setType(t)}
+              className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors text-left ${
+                type === t
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Button size="sm" onClick={commit} disabled={!name.trim()}>Add field</Button>
+    </div>,
+    document.body,
   )
 }
 
@@ -746,34 +1017,26 @@ function ItemCard({
         </div>
 
         {/* Name + description */}
-        <div className="flex flex-col py-3 px-3 w-80 shrink-0 border-r border-border/60">
+        <div className="flex flex-col justify-center py-3 px-3 w-80 shrink-0 border-r border-border/60">
           <InlineInput
             value={item.name}
             onSave={(v) => onUpdate({ name: v })}
-            className="text-sm font-medium text-gray-800"
+            className="text-sm font-medium text-foreground"
           />
-          <InlineTextarea
+          <InlineInput
             value={item.description}
             onSave={(v) => onUpdate({ description: v })}
             placeholder="Description"
+            className="text-sm text-muted-foreground"
           />
         </div>
 
-        {/* Fields — one per column, table-style */}
-        {fields.length > 0 && (
-          <div className="flex items-start divide-x divide-border/60 flex-1 min-w-0 overflow-visible">
-            {fields.map((field) => (
-              <div key={field.id} className="flex flex-col px-3 py-3 min-w-[120px]">
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">{field.name}</span>
-                <FieldChip
-                  field={field}
-                  value={item.fields[field.id] ?? null}
-                  onChange={(v) => onUpdate({ fields: { ...item.fields, [field.id]: v } })}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Fields — horizontally scrollable */}
+        <FieldCells
+          fields={fields}
+          itemFields={item.fields}
+          onChange={(fieldId, v) => onUpdate({ fields: { ...item.fields, [fieldId]: v } })}
+        />
       </div>
     </div>
   )
@@ -838,7 +1101,6 @@ function FieldChip({ field, value, onChange }: {
             field={field}
             selected={label}
             onSelect={(opt) => { onChange(opt); setOpen(false) }}
-            onClose={() => setOpen(false)}
             pos={menuPos}
           />,
           document.body,
@@ -863,7 +1125,6 @@ function FieldChip({ field, value, onChange }: {
             field={field}
             selected={selected}
             onToggle={(opt) => onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt])}
-            onClose={() => setOpen(false)}
             pos={menuPos}
           />,
           document.body,
@@ -883,9 +1144,9 @@ function FieldChip({ field, value, onChange }: {
   return null
 }
 
-function SelectMenu({ field, selected, onSelect, onClose, pos }: {
+function SelectMenu({ field, selected, onSelect, pos }: {
   field: Field; selected: string | null
-  onSelect: (v: string | null) => void; onClose: () => void
+  onSelect: (v: string | null) => void
   pos: { top: number; left: number }
 }) {
   return (
@@ -911,9 +1172,9 @@ function SelectMenu({ field, selected, onSelect, onClose, pos }: {
   )
 }
 
-function MultiSelectMenu({ field, selected, onToggle, onClose, pos }: {
+function MultiSelectMenu({ field, selected, onToggle, pos }: {
   field: Field; selected: string[]
-  onToggle: (v: string) => void; onClose: () => void
+  onToggle: (v: string) => void
   pos: { top: number; left: number }
 }) {
   return (
@@ -964,48 +1225,6 @@ function InlineInput({ value, onSave, placeholder = '', className = '' }: {
       }}
       placeholder={placeholder}
       className={`block w-full bg-transparent border border-transparent rounded px-1 py-0.5 focus:bg-background focus:border-primary/50 focus:outline-none placeholder:text-muted-foreground/40 transition-colors ${className}`}
-    />
-  )
-}
-
-function InlineTextarea({ value, onSave, placeholder = '' }: {
-  value: string
-  onSave: (v: string) => void
-  placeholder?: string
-}) {
-  const [draft, setDraft] = useState(value)
-  const [focused, setFocused] = useState(false)
-  const ref = useRef<HTMLTextAreaElement>(null)
-
-  // Auto-resize: set height to scrollHeight while focused, revert to 2-row fixed on blur
-  const resize = () => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }
-
-  const commit = () => {
-    setFocused(false)
-    if (ref.current) ref.current.style.height = ''
-    if (draft !== value) onSave(draft)
-  }
-
-  return (
-    <textarea
-      ref={ref}
-      value={draft}
-      rows={2}
-      onChange={(e) => { setDraft(e.target.value); resize() }}
-      onFocus={() => { setDraft(value); setFocused(true); setTimeout(resize, 0) }}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') { setDraft(value); (e.target as HTMLTextAreaElement).blur() }
-      }}
-      placeholder={placeholder}
-      className={`block w-full border rounded px-1 py-0.5 text-sm text-foreground font-normal focus:outline-none placeholder:text-muted-foreground/40 resize-none leading-snug transition-colors ${
-        focused ? 'bg-background border-primary/50' : 'bg-transparent border-transparent'
-      }`}
     />
   )
 }
@@ -1126,19 +1345,24 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
 // ─── View mode toggle ─────────────────────────────────────────────────────────
 
 function ViewModeToggle({ mode, onChange }: {
-  mode: 'catalogue' | 'focus'
-  onChange: (m: 'catalogue' | 'focus') => void
+  mode: 'catalogue' | 'focus' | 'cards'
+  onChange: (m: 'catalogue' | 'focus' | 'cards') => void
 }) {
+  const btn = (m: typeof mode, title: string, icon: React.ReactNode) => (
+    <button
+      onClick={() => onChange(m)}
+      title={title}
+      className={`flex items-center justify-center w-7 h-6 transition-colors ${
+        mode === m ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+      }`}
+    >
+      {icon}
+    </button>
+  )
+
   return (
     <div className="flex items-center rounded-md border border-border overflow-hidden">
-      <button
-        onClick={() => onChange('catalogue')}
-        title="Catalogue mode"
-        className={`flex items-center justify-center w-7 h-6 transition-colors ${
-          mode === 'catalogue' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-        }`}
-      >
-        {/* Grid/table icon */}
+      {btn('catalogue', 'Catalogue', (
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
           <rect x="1" y="1" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
           <rect x="9" y="1" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
@@ -1147,34 +1371,27 @@ function ViewModeToggle({ mode, onChange }: {
           <rect x="1" y="13" width="6" height="2" rx="1" stroke="currentColor" strokeWidth="1.4"/>
           <rect x="9" y="13" width="6" height="2" rx="1" stroke="currentColor" strokeWidth="1.4"/>
         </svg>
-      </button>
+      ))}
       <div className="w-px h-4 bg-border" />
-      <button
-        onClick={() => onChange('focus')}
-        title="Focus mode"
-        className={`flex items-center justify-center w-7 h-6 transition-colors ${
-          mode === 'focus' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-        }`}
-      >
-        {/* Text/document icon */}
+      {btn('cards', 'Cards', (
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="1" width="6" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+          <rect x="9" y="1" width="6" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+          <rect x="1" y="11" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+          <rect x="9" y="11" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+        </svg>
+      ))}
+      <div className="w-px h-4 bg-border" />
+      {btn('focus', 'Focus', (
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
           <path d="M3 4h10M3 7h10M3 10h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
-      </button>
+      ))}
     </div>
   )
 }
 
 // ─── Focus mode bar ───────────────────────────────────────────────────────────
-
-function FocusModeBar({ onExit, toggle }: { onExit: () => void; toggle: React.ReactNode }) {
-  return (
-    <div className="border-b border-gray-100 bg-white shrink-0 flex items-center gap-2 px-3 py-1.5">
-      <span className="text-xs text-gray-400 font-serif italic">Focus mode</span>
-      <div className="ml-auto pl-2">{toggle}</div>
-    </div>
-  )
-}
 
 // ─── Focus group header ───────────────────────────────────────────────────────
 
@@ -1323,38 +1540,119 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
   )
 }
 
-// ─── Upload images button ─────────────────────────────────────────────────────
+// ─── Card group section ───────────────────────────────────────────────────────
 
-function UploadImagesButton() {
-  const { addItem } = useCollectionStore()
+function CardGroupSection({ groupKey, items, groupField, collapsedOverride }: {
+  groupKey: string
+  items: Item[]
+  groupField?: Field
+  collapsedOverride?: boolean | null
+}) {
+  const [collapsed, setCollapsed] = useState(false)
 
-  const handleClick = () => {
+  useEffect(() => {
+    if (collapsedOverride !== null && collapsedOverride !== undefined) setCollapsed(collapsedOverride)
+  }, [collapsedOverride])
+
+  const isEditableGroup = groupField && groupKey !== '(none)'
+  const chipStyle = isEditableGroup ? optionStyle(groupField.optionColors?.[groupKey]) : null
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-2.5 px-1 py-2 mb-1 rounded-lg cursor-pointer select-none hover:bg-muted/50 transition-colors"
+        onClick={() => setCollapsed((v) => !v)}
+      >
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}>
+          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {isEditableGroup && chipStyle ? (
+          <span style={{ color: chipStyle.color }} className="font-semibold text-base">{groupKey}</span>
+        ) : (
+          <span className="font-semibold text-base text-foreground">{groupKey}</span>
+        )}
+        <span className="text-sm text-muted-foreground">{items.length}</span>
+      </div>
+      {!collapsed && (
+        <div className="grid grid-cols-8 gap-3">
+          {items.map((item) => (
+            <SortableCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Sortable card (cards view) ───────────────────────────────────────────────
+
+function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
+  const { updateItem } = useCollectionStore()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  const handleImageClick = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
-    input.multiple = true
-    input.onchange = async () => {
-      const files = Array.from(input.files ?? [])
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const dataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.readAsDataURL(file)
-        })
-        addItem({ name: file.name.replace(/\.[^.]+$/, ''), description: '', imagePath: dataUrl, fields: {}, canvas: { x: 0, y: 0 } })
-      }
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => updateItem(item.id, { imagePath: reader.result as string })
+      reader.readAsDataURL(file)
     }
     input.click()
   }
 
   return (
-    <button
-      onClick={handleClick}
-      className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-card rounded-xl border overflow-hidden group transition-all ${
+        isDragging ? 'opacity-0' : 'hover:shadow-md hover:border-primary/30 border-border'
+      } ${overlay ? 'shadow-2xl border-primary/30' : ''}`}
     >
-      Upload images
-    </button>
+      {/* Image area — clickable for upload */}
+      <div
+        onClick={handleImageClick}
+        className={`aspect-square relative overflow-hidden cursor-pointer transition-all ${
+          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80 border-b-2 border-dashed border-border hover:border-border/80'
+        }`}
+        title={item.imagePath ? 'Click to replace image' : 'Click to upload image'}
+      >
+        {item.imagePath ? (
+          <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground select-none">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <span className="text-[9px] font-medium tracking-wide uppercase">Image</span>
+          </div>
+        )}
+      </div>
+
+      {/* Name + drag handle */}
+      <div className="flex items-center gap-1.5 px-2.5 py-2">
+        <div
+          {...attributes}
+          {...listeners}
+          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+        >
+          <svg width="10" height="12" viewBox="0 0 10 14" fill="none">
+            <circle cx="2.5" cy="2.5" r="1.2" fill="currentColor"/>
+            <circle cx="7.5" cy="2.5" r="1.2" fill="currentColor"/>
+            <circle cx="2.5" cy="7" r="1.2" fill="currentColor"/>
+            <circle cx="7.5" cy="7" r="1.2" fill="currentColor"/>
+            <circle cx="2.5" cy="11.5" r="1.2" fill="currentColor"/>
+            <circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/>
+          </svg>
+        </div>
+        <p className="text-xs font-medium text-foreground truncate">{item.name || <span className="text-muted-foreground/50 italic">Untitled</span>}</p>
+      </div>
+    </div>
   )
 }
 
@@ -1387,35 +1685,27 @@ function DraftItemCard({ draft, fields, onChange, onAdd, onCancel }: {
         </div>
 
         {/* Name + description */}
-        <div className="flex flex-col py-3 px-3 w-80 shrink-0 border-r border-border/60">
+        <div className="flex flex-col justify-center py-3 px-3 w-80 shrink-0 border-r border-border/60">
           <InlineInput
             value={draft.name}
             onSave={(v) => onChange({ name: v })}
             placeholder="Item name"
             className="text-sm font-medium text-foreground"
           />
-          <InlineTextarea
+          <InlineInput
             value={draft.description}
             onSave={(v) => onChange({ description: v })}
             placeholder="Description"
+            className="text-sm text-muted-foreground"
           />
         </div>
 
         {/* Fields */}
-        {fields.length > 0 && (
-          <div className="flex items-start divide-x divide-border/60 flex-1 min-w-0 overflow-visible">
-            {fields.map((field) => (
-              <div key={field.id} className="flex flex-col px-3 py-3 min-w-[120px]">
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">{field.name}</span>
-                <FieldChip
-                  field={field}
-                  value={draft.fields[field.id] ?? null}
-                  onChange={(v) => onChange({ fields: { ...draft.fields, [field.id]: v } })}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <FieldCells
+          fields={fields}
+          itemFields={draft.fields}
+          onChange={(fieldId, v) => onChange({ fields: { ...draft.fields, [fieldId]: v } })}
+        />
 
         {/* Add / Cancel */}
         <div className="flex items-center gap-1.5 px-3 self-stretch border-l border-border/60 shrink-0">

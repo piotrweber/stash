@@ -32,6 +32,7 @@ interface CollectionStore {
   updateItem: (id: string, patch: Partial<Item>) => void
   deleteItem: (id: string) => void
   moveItem: (id: string, pos: CanvasPosition) => void
+  reorderItems: (orderedIds: string[]) => void
 
   // Schema actions
   addField: (field: Omit<Field, 'id'>) => void
@@ -365,6 +366,16 @@ export const useCollectionStore = create<CollectionStore>()(
         ...s.collection,
         items: s.collection.items.map((it) => it.id === id ? { ...it, canvas: pos } : it),
       })
+      return sync(s, updated)
+    }),
+
+  reorderItems: (orderedIds) =>
+    set((s) => {
+      if (!s.collection) return s
+      const map = new Map(s.collection.items.map((it) => [it.id, it]))
+      const reordered = orderedIds.map((id) => map.get(id)).filter(Boolean) as typeof s.collection.items
+      const missed = s.collection.items.filter((it) => !new Set(orderedIds).has(it.id))
+      const updated = touch({ ...s.collection, items: [...reordered, ...missed] })
       return sync(s, updated)
     }),
 
