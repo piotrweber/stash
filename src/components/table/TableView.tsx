@@ -173,14 +173,12 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
 
             {/* Controls row */}
             <div className="flex items-center gap-1 mt-3 flex-wrap">
-              {viewMode === 'catalogue' && (
-                <button
-                  onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-                >
-                  + Add item
-                </button>
-              )}
+              <button
+                onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+              >
+                + New
+              </button>
               <FilterSortBar
                 bare
                 sortFields={sortFields}

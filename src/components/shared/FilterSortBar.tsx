@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import type { Filter, Field } from '../../types/collection'
 
 type Op = Filter['op']
@@ -23,20 +23,226 @@ interface FilterSortBarProps {
   bare?: boolean
 }
 
-function opsForField(field: FilterableField | undefined): Op[] {
-  if (!field) return ['is', 'is_not', 'contains']
-  if (field.type === 'select') return ['is', 'is_not', 'is_any_of']
-  if (field.type === 'multi-select') return ['is_any_of', 'contains']
-  if (field.type === 'number') return ['is', 'is_not']
-  return ['is', 'is_not', 'contains']
-}
-
 const OP_LABELS: Record<Op, string> = {
   is: 'is',
   is_not: 'is not',
   contains: 'contains',
   is_any_of: 'is any of',
 }
+
+function opsForType(type: FilterableField['type']): Op[] {
+  if (type === 'select') return ['is', 'is_not', 'is_any_of']
+  if (type === 'multi-select') return ['is_any_of', 'contains']
+  if (type === 'number') return ['is', 'is_not']
+  return ['is', 'is_not', 'contains']
+}
+
+// ─── Dropdown portal ──────────────────────────────────────────────────────────
+
+function useDropdown(anchor: React.RefObject<HTMLElement | null>) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  const toggle = useCallback(() => {
+    if (!anchor.current) return
+    if (!open) {
+      const r = anchor.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 6, left: r.left })
+    }
+    setOpen((v) => !v)
+  }, [open, anchor])
+
+  const close = useCallback(() => setOpen(false), [])
+
+  return { open, pos, toggle, close }
+}
+
+function Dropdown({ pos, onClose, children, width = 260 }: {
+  pos: { top: number; left: number }
+  onClose: () => void
+  children: React.ReactNode
+  width?: number
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  const left = Math.min(pos.left, window.innerWidth - width - 12)
+  const top = Math.min(pos.top, window.innerHeight - 400)
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{ position: 'fixed', top, left, width, zIndex: 9999 }}
+      className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
+// ─── Filter dropdown ──────────────────────────────────────────────────────────
+
+function FilterDropdown({ filters, filterFields, onChange, onClose, pos }: {
+  filters: Filter[]
+  filterFields: FilterableField[]
+  onChange: (f: Filter[]) => void
+  onClose: () => void
+  pos: { top: number; left: number }
+}) {
+  const activeIds = new Set(filters.map((f) => f.fieldId))
+
+  const toggle = (field: FilterableField) => {
+    if (activeIds.has(field.id)) {
+      onChange(filters.filter((f) => f.fieldId !== field.id))
+    } else {
+      const op = opsForType(field.type)[0]
+      onChange([...filters, { fieldId: field.id, op, value: '' }])
+    }
+  }
+
+  return (
+    <Dropdown pos={pos} onClose={onClose} width={200}>
+      <div className="py-1">
+        {filterFields.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => toggle(f)}
+            className={`w-full text-left flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+              activeIds.has(f.id) ? 'text-indigo-600 bg-indigo-50' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+              activeIds.has(f.id) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
+            }`}>
+              {activeIds.has(f.id) && <span className="text-white text-[9px] leading-none">✓</span>}
+            </span>
+            {f.name}
+          </button>
+        ))}
+      </div>
+    </Dropdown>
+  )
+}
+
+// ─── Sort dropdown ────────────────────────────────────────────────────────────
+
+function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
+  sortBy: string | null
+  sortDir: 'asc' | 'desc'
+  sortFields: SortableField[]
+  onChange: (sortBy: string | null, sortDir: 'asc' | 'desc') => void
+  onClose: () => void
+  pos: { top: number; left: number }
+}) {
+  return (
+    <Dropdown pos={pos} onClose={onClose} width={220}>
+      <div className="px-3 py-2 border-b border-gray-100">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sort</span>
+      </div>
+
+      {sortBy && (
+        <div className="px-3 py-2.5 border-b border-gray-50">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-gray-500 font-medium flex-1">{sortFields.find((f) => f.id === sortBy)?.name}</span>
+            <button onClick={() => onChange(null, 'asc')} className="text-gray-300 hover:text-red-400 transition-colors text-base leading-none">×</button>
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onChange(sortBy, 'asc')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                sortDir === 'asc' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M6 9V3M6 3L3 6M6 3l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Ascending
+            </button>
+            <button
+              onClick={() => onChange(sortBy, 'desc')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                sortDir === 'desc' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M6 3v6M6 9L3 6M6 9l3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Descending
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="py-1">
+        {!sortBy && <p className="text-xs text-gray-400 px-3 py-2">Pick a field to sort by</p>}
+        {sortFields.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => { onChange(f.id, sortDir); }}
+            className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+              sortBy === f.id ? 'text-indigo-600 font-medium bg-indigo-50' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {sortBy === f.id && <span className="text-indigo-500 text-[10px]">✓</span>}
+            {f.name}
+          </button>
+        ))}
+      </div>
+    </Dropdown>
+  )
+}
+
+// ─── Group dropdown ───────────────────────────────────────────────────────────
+
+function GroupDropdown({ groupBy, groupableFields, onChange, onClose, pos }: {
+  groupBy: string | null
+  groupableFields: SortableField[]
+  onChange: (fieldId: string | null) => void
+  onClose: () => void
+  pos: { top: number; left: number }
+}) {
+  return (
+    <Dropdown pos={pos} onClose={onClose} width={200}>
+      <div className="px-3 py-2 border-b border-gray-100">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Group by</span>
+      </div>
+      <div className="py-1">
+        <button
+          onClick={() => { onChange(null); onClose() }}
+          className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+            !groupBy ? 'text-indigo-600 font-medium bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'
+          }`}
+        >
+          {!groupBy && <span className="text-indigo-500 text-[10px]">✓</span>}
+          No grouping
+        </button>
+        {groupableFields.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => { onChange(f.id); onClose() }}
+            className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
+              groupBy === f.id ? 'text-indigo-600 font-medium bg-indigo-50' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {groupBy === f.id && <span className="text-indigo-500 text-[10px]">✓</span>}
+            {f.name}
+          </button>
+        ))}
+      </div>
+    </Dropdown>
+  )
+}
+
+// ─── Main bar ─────────────────────────────────────────────────────────────────
 
 export function FilterSortBar({
   sortFields, filterFields, schemaFields,
@@ -46,251 +252,125 @@ export function FilterSortBar({
   endSlot,
   bare = false,
 }: FilterSortBarProps) {
-  const [showFilter, setShowFilter] = useState(false)
-  const [showSort, setShowSort] = useState(false)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const sortBtnRef = useRef<HTMLButtonElement>(null)
+  const groupBtnRef = useRef<HTMLButtonElement>(null)
 
-  const addFilter = () => {
-    const first = filterFields[0]
-    if (!first) return
-    onFiltersChange([...filters, { fieldId: first.id, op: 'contains', value: '' }])
-    setShowFilter(true)
-  }
+  const filterDrop = useDropdown(filterBtnRef)
+  const sortDrop = useDropdown(sortBtnRef)
+  const groupDrop = useDropdown(groupBtnRef)
 
-  const updateFilter = (idx: number, patch: Partial<Filter>) => {
-    const next = filters.map((f, i) => {
-      if (i !== idx) return f
-      const updated = { ...f, ...patch }
-      if (patch.fieldId !== undefined || patch.op !== undefined) updated.value = ''
-      return updated
-    })
-    onFiltersChange(next)
-  }
+  const closeAll = () => { filterDrop.close(); sortDrop.close(); groupDrop.close() }
 
-  const removeFilter = (idx: number) => {
-    const next = filters.filter((_, i) => i !== idx)
-    onFiltersChange(next)
-    if (!next.length) setShowFilter(false)
-  }
-
-  const sortLabel = sortBy ? (sortFields.find((f) => f.id === sortBy)?.name ?? sortBy) : null
   const hasActive = filters.length > 0 || !!sortBy || !!groupBy
+  const groupName = groupBy ? groupableFields?.find((f) => f.id === groupBy)?.name : null
+  const sortName = sortBy ? sortFields.find((f) => f.id === sortBy)?.name : null
 
   const inner = (
-    <>
-      {/* Toolbar row */}
-      <div className="flex items-center gap-1 flex-wrap">
-        {/* Filter button */}
+    <div className="flex items-center gap-0.5 flex-wrap">
+      {/* Filter */}
+      <button
+        ref={filterBtnRef}
+        onClick={() => { closeAll(); filterDrop.toggle() }}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+          filters.length > 0
+            ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+        }`}
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        Filter
+        {filters.length > 0 && (
+          <span className="bg-indigo-200 text-indigo-800 rounded-full px-1.5 text-[10px] font-semibold leading-4">
+            {filters.length}
+          </span>
+        )}
+      </button>
+
+      {/* Sort */}
+      <button
+        ref={sortBtnRef}
+        onClick={() => { closeAll(); sortDrop.toggle() }}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+          sortBy
+            ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+        }`}
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <path d="M2 5h12M4 8h8M6 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        Sort
+        {sortName && (
+          <span className="text-indigo-600 font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
+        )}
+      </button>
+
+      {/* Group */}
+      {onGroupByChange && groupableFields && groupableFields.length > 0 && (
         <button
-          onClick={() => { setShowFilter((v) => !v); setShowSort(false) }}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-            filters.length > 0
+          ref={groupBtnRef}
+          onClick={() => { closeAll(); groupDrop.toggle() }}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+            groupBy
               ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
           }`}
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+            <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+            <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+            <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
           </svg>
-          Filter
-          {filters.length > 0 && (
-            <span className="ml-0.5 bg-indigo-200 text-indigo-800 rounded-full px-1.5 text-[10px] font-semibold">
-              {filters.length}
-            </span>
-          )}
+          Group
+          {groupName && <span className="text-indigo-600 font-semibold">{groupName}</span>}
         </button>
+      )}
 
-        {/* Sort button */}
+      {hasActive && (
         <button
-          onClick={() => { setShowSort((v) => !v); setShowFilter(false) }}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-            sortBy
-              ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-          }`}
+          onClick={() => { onFiltersChange([]); onSortChange(null, 'asc'); onGroupByChange?.(null); closeAll() }}
+          className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <path d="M2 5h12M4 8h8M6 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          Sort
-          {sortLabel && (
-            <span className="ml-0.5 text-indigo-600 font-semibold">
-              {sortLabel} {sortDir === 'asc' ? '↑' : '↓'}
-            </span>
-          )}
+          Clear
         </button>
-
-        {/* Group by — always visible when groupable fields exist */}
-        {onGroupByChange && groupableFields && groupableFields.length > 0 && (
-          <div className="flex items-center gap-1 border-l border-gray-100 pl-2 ml-0.5">
-            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mr-0.5">Group</span>
-            <button
-              onClick={() => onGroupByChange(null)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                !groupBy ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-700'
-              }`}
-            >
-              None
-            </button>
-            {groupableFields.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => onGroupByChange(f.id)}
-                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                  groupBy === f.id
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }`}
-              >
-                {f.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {hasActive && (
-          <button
-            onClick={() => {
-              onFiltersChange([])
-              onSortChange(null, 'asc')
-              onGroupByChange?.(null)
-              setShowFilter(false)
-              setShowSort(false)
-            }}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Clear all
-          </button>
-        )}
-
-        {endSlot && <div className="ml-auto pl-2">{endSlot}</div>}
-      </div>
-
-      {/* Filter panel */}
-      {showFilter && (
-        <div className="pt-1.5 pb-1.5 flex flex-col gap-1.5">
-          {filters.map((filter, idx) => {
-            const field = filterFields.find((f) => f.id === filter.fieldId)
-            const ops = opsForField(field)
-            const schemaField = schemaFields.find((f) => f.id === filter.fieldId)
-            const hasOptions = (field?.type === 'select' || field?.type === 'multi-select') && schemaField?.options.length
-
-            return (
-              <div key={idx} className="flex items-center gap-1.5 text-xs">
-                <select
-                  value={filter.fieldId}
-                  onChange={(e) => updateFilter(idx, { fieldId: e.target.value })}
-                  className="border border-gray-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-indigo-400"
-                >
-                  {filterFields.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={filter.op}
-                  onChange={(e) => updateFilter(idx, { op: e.target.value as Op })}
-                  className="border border-gray-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-indigo-400"
-                >
-                  {ops.map((op) => (
-                    <option key={op} value={op}>{OP_LABELS[op]}</option>
-                  ))}
-                </select>
-
-                {hasOptions && filter.op === 'is_any_of' ? (
-                  <div className="flex flex-wrap gap-1">
-                    {schemaField!.options.map((opt) => {
-                      const arr = Array.isArray(filter.value) ? filter.value : []
-                      const active = arr.includes(opt)
-                      return (
-                        <button
-                          key={opt}
-                          onClick={() => {
-                            const next = active ? arr.filter((v) => v !== opt) : [...arr, opt]
-                            updateFilter(idx, { value: next })
-                          }}
-                          className={`px-2 py-0.5 rounded-full border text-[11px] transition-colors ${
-                            active ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-600 hover:border-indigo-300'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : hasOptions ? (
-                  <select
-                    value={filter.value as string}
-                    onChange={(e) => updateFilter(idx, { value: e.target.value })}
-                    className="border border-gray-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-indigo-400"
-                  >
-                    <option value="">—</option>
-                    {schemaField!.options.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={field?.type === 'number' ? 'number' : 'text'}
-                    value={filter.value as string}
-                    onChange={(e) => updateFilter(idx, { value: e.target.value })}
-                    placeholder="Value…"
-                    className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-indigo-400 w-32"
-                  />
-                )}
-
-                <button onClick={() => removeFilter(idx)} className="text-gray-300 hover:text-red-400 transition-colors ml-auto">×</button>
-              </div>
-            )
-          })}
-
-          <button
-            onClick={addFilter}
-            className="text-xs text-gray-400 hover:text-indigo-600 transition-colors text-left"
-          >
-            + Add filter
-          </button>
-        </div>
       )}
 
-      {/* Sort panel */}
-      {showSort && (
-        <div className="pt-1.5 pb-1.5 flex items-center gap-2">
-          <select
-            value={sortBy ?? ''}
-            onChange={(e) => onSortChange(e.target.value || null, sortDir)}
-            className="border border-gray-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:border-indigo-400"
-          >
-            <option value="">No sort</option>
-            {sortFields.map((f) => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
+      {endSlot && <div className="ml-auto pl-2">{endSlot}</div>}
 
-          {sortBy && (
-            <div className="flex rounded border border-gray-200 overflow-hidden text-xs">
-              <button
-                onClick={() => onSortChange(sortBy, 'asc')}
-                className={`px-2.5 py-1 transition-colors ${sortDir === 'asc' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                ↑ Asc
-              </button>
-              <button
-                onClick={() => onSortChange(sortBy, 'desc')}
-                className={`px-2.5 py-1 transition-colors ${sortDir === 'desc' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                ↓ Desc
-              </button>
-            </div>
-          )}
-
-          {sortBy && (
-            <button onClick={() => onSortChange(null, 'asc')} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-              Clear
-            </button>
-          )}
-        </div>
+      {/* Portals */}
+      {filterDrop.open && filterDrop.pos && (
+        <FilterDropdown
+          filters={filters}
+          filterFields={filterFields}
+          onChange={onFiltersChange}
+          onClose={filterDrop.close}
+          pos={filterDrop.pos}
+        />
       )}
-    </>
+      {sortDrop.open && sortDrop.pos && (
+        <SortDropdown
+          sortBy={sortBy}
+          sortDir={sortDir}
+          sortFields={sortFields}
+          onChange={onSortChange}
+          onClose={sortDrop.close}
+          pos={sortDrop.pos}
+        />
+      )}
+      {groupDrop.open && groupDrop.pos && onGroupByChange && groupableFields && (
+        <GroupDropdown
+          groupBy={groupBy ?? null}
+          groupableFields={groupableFields}
+          onChange={onGroupByChange}
+          onClose={groupDrop.close}
+          pos={groupDrop.pos}
+        />
+      )}
+    </div>
   )
 
   if (bare) return <>{inner}</>

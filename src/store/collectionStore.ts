@@ -264,7 +264,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
     set((s) => {
       if (!s.collection) return s
       const newItem: Item = { ...item, id: nanoid() }
-      const updated = touch({ ...s.collection, items: [...s.collection.items, newItem] })
+      const updated = touch({ ...s.collection, items: [newItem, ...s.collection.items] })
       return sync(s, updated)
     }),
 
