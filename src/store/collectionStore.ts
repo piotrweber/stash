@@ -7,15 +7,22 @@ import type {
 import { createSampleCollection } from '../data/sampleCollection'
 
 interface CollectionStore {
-  collection: Collection | null
-  filePath: string | null
+  projects: Collection[]
+  activeProjectId: string | null
   isDirty: boolean
 
-  // File actions
-  newCollection: (name: string) => void
-  openCollection: (json: string, path: string) => void
-  saveCollection: () => string | null   // returns JSON string (caller handles write)
-  loadSample: () => void
+  // Convenience getter — always the active project or null
+  collection: Collection | null
+
+  // Project management
+  createBlankProject: (name: string) => void
+  createProjectFromCsv: (name: string, csvText: string) => void
+  createProjectFromImages: (name: string, images: { name: string; dataUrl: string }[]) => void
+  loadProjectFile: (json: string) => void
+  openProject: (id: string) => void
+  closeProject: () => void
+  deleteProject: (id: string) => void
+  saveProject: () => string | null
 
   // Item actions
   addItem: (item: Omit<Item, 'id'>) => void
@@ -28,7 +35,7 @@ interface CollectionStore {
   updateField: (id: string, patch: Partial<Field>) => void
   deleteField: (id: string) => void
 
-  // Canvas actions
+  // Canvas actions (kept for data compat)
   addFrame: (frame: Omit<Frame, 'id'>) => void
   updateFrame: (id: string, patch: Partial<Frame>) => void
   deleteFrame: (id: string) => void
@@ -38,7 +45,12 @@ interface CollectionStore {
   setTableState: (patch: Partial<ViewStateTable>) => void
   setBoardState: (patch: Partial<ViewStateBoard>) => void
   setCanvasState: (patch: Partial<ViewStateCanvas>) => void
+
+  // Legacy compat
+  loadSample: () => void
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const emptyCollection = (name: string): Collection => {
   const now = new Date().toISOString()
@@ -48,7 +60,7 @@ const emptyCollection = (name: string): Collection => {
     items: [],
     canvas: { frames: [] },
     views: {
-      table: { sortBy: 'name', sortDir: 'asc', filters: [] },
+      table: { sortBy: null, sortDir: 'asc', filters: [] },
       board: { groupBy: null, sortBy: null, sortDir: 'asc', filters: [] },
       canvas: { zoom: 1, panX: 0, panY: 0, activeFilters: [], groupBy: null, stackPositions: {} },
     },
@@ -60,107 +72,246 @@ const touch = (col: Collection): Collection => ({
   meta: { ...col.meta, updatedAt: new Date().toISOString() },
 })
 
+// Sync updated active collection into the projects array
+function sync(
+  state: { projects: Collection[]; activeProjectId: string | null },
+  updated: Collection,
+): Partial<CollectionStore> {
+  return {
+    isDirty: true,
+    collection: updated,
+    projects: state.projects.map((p) =>
+      p.meta.id === updated.meta.id ? updated : p,
+    ),
+  }
+}
+
+function parseCsv(text: string): string[][] {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  return lines
+    .filter((line) => line.trim() !== '')
+    .map((line) => {
+      const fields: string[] = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+          else inQuotes = !inQuotes
+        } else if (ch === ',' && !inQuotes) {
+          fields.push(current.trim()); current = ''
+        } else {
+          current += ch
+        }
+      }
+      fields.push(current.trim())
+      return fields
+    })
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────────
+
 export const useCollectionStore = create<CollectionStore>((set, get) => ({
-  collection: null,
-  filePath: null,
+  projects: [],
+  activeProjectId: null,
   isDirty: false,
+  collection: null,
 
-  newCollection: (name) =>
-    set({ collection: emptyCollection(name), filePath: null, isDirty: false }),
-
-  openCollection: (json, path) => {
-    const collection = JSON.parse(json) as Collection
-    set({ collection, filePath: path, isDirty: false })
+  createBlankProject: (name) => {
+    const col = emptyCollection(name)
+    const item: Item = {
+      id: nanoid(),
+      name: 'Name',
+      description: 'Description',
+      imagePath: '',
+      fields: {},
+      canvas: { x: 0, y: 0 },
+    }
+    const colWithItem = { ...col, items: [item] }
+    set((s) => ({
+      projects: [...s.projects, colWithItem],
+      activeProjectId: colWithItem.meta.id,
+      collection: colWithItem,
+      isDirty: false,
+    }))
   },
 
-  saveCollection: () => {
+  createProjectFromCsv: (name, csvText) => {
+    const rows = parseCsv(csvText)
+    if (rows.length < 2) return
+
+    const col = emptyCollection(name)
+    const fields: Field[] = []
+    const fieldIdMap: Record<number, string> = {}
+
+    const headers = rows[0]
+    const dataRows = rows.slice(1)
+
+    const nameColIdx = (() => {
+      const i = headers.findIndex((h) => h.toLowerCase() === 'name')
+      return i >= 0 ? i : 0
+    })()
+    const descColIdx = headers.findIndex((h) => h.toLowerCase() === 'description')
+
+    for (let ci = 0; ci < headers.length; ci++) {
+      if (ci === nameColIdx || ci === descColIdx) continue
+      const newField: Field = { id: nanoid(), name: headers[ci], type: 'text', options: [] }
+      fields.push(newField)
+      fieldIdMap[ci] = newField.id
+    }
+
+    const items: Item[] = dataRows.map((row, i) => ({
+      id: nanoid(),
+      name: row[nameColIdx]?.trim() || 'Unnamed',
+      description: descColIdx >= 0 ? (row[descColIdx]?.trim() ?? '') : '',
+      imagePath: '',
+      fields: Object.fromEntries(
+        Object.entries(fieldIdMap).map(([ciStr, fid]) => [fid, row[Number(ciStr)]?.trim() ?? ''])
+      ),
+      canvas: { x: 80 + (i % 8) * 140, y: 80 + Math.floor(i / 8) * 160 },
+    }))
+
+    const finalCol: Collection = {
+      ...col,
+      schema: { fields, cardVisibleFields: [] },
+      items,
+    }
+
+    set((s) => ({
+      projects: [...s.projects, finalCol],
+      activeProjectId: finalCol.meta.id,
+      collection: finalCol,
+      isDirty: false,
+    }))
+  },
+
+  createProjectFromImages: (name, images) => {
+    const col = emptyCollection(name)
+    const items: Item[] = images.map((img, i) => ({
+      id: nanoid(),
+      name: img.name,
+      description: '',
+      imagePath: img.dataUrl,
+      fields: {},
+      canvas: { x: 80 + (i % 8) * 140, y: 80 + Math.floor(i / 8) * 160 },
+    }))
+    const finalCol = { ...col, items }
+    set((s) => ({
+      projects: [...s.projects, finalCol],
+      activeProjectId: finalCol.meta.id,
+      collection: finalCol,
+      isDirty: false,
+    }))
+  },
+
+  loadProjectFile: (json) => {
+    const col = JSON.parse(json) as Collection
+    // Normalize missing view fields
+    if (!col.views.board.sortDir) col.views.board.sortDir = 'asc'
+    if (!col.views.board.filters) col.views.board.filters = []
+    if (!col.views.canvas.stackPositions) col.views.canvas.stackPositions = {}
+    if (col.views.canvas.groupBy === undefined) col.views.canvas.groupBy = null
+    set((s) => {
+      const existing = s.projects.findIndex((p) => p.meta.id === col.meta.id)
+      const projects = existing >= 0
+        ? s.projects.map((p) => p.meta.id === col.meta.id ? col : p)
+        : [...s.projects, col]
+      return { projects, activeProjectId: col.meta.id, collection: col, isDirty: false }
+    })
+  },
+
+  openProject: (id) => {
+    const col = get().projects.find((p) => p.meta.id === id) ?? null
+    set({ activeProjectId: id, collection: col, isDirty: false })
+  },
+
+  closeProject: () => {
+    set({ activeProjectId: null, collection: null, isDirty: false })
+  },
+
+  deleteProject: (id) => {
+    set((s) => {
+      const projects = s.projects.filter((p) => p.meta.id !== id)
+      const isActive = s.activeProjectId === id
+      return {
+        projects,
+        ...(isActive ? { activeProjectId: null, collection: null, isDirty: false } : {}),
+      }
+    })
+  },
+
+  saveProject: () => {
     const { collection } = get()
     if (!collection) return null
     const updated = touch(collection)
-    set({ collection: updated, isDirty: false })
+    set((s) => ({
+      ...sync(s, updated),
+      isDirty: false,
+    }))
     return JSON.stringify(updated, null, 2)
   },
-
-  loadSample: () =>
-    set({ collection: createSampleCollection(), filePath: null, isDirty: false }),
 
   addItem: (item) =>
     set((s) => {
       if (!s.collection) return s
       const newItem: Item = { ...item, id: nanoid() }
-      return {
-        isDirty: true,
-        collection: touch({ ...s.collection, items: [...s.collection.items, newItem] }),
-      }
+      const updated = touch({ ...s.collection, items: [...s.collection.items, newItem] })
+      return sync(s, updated)
     }),
 
   updateItem: (id, patch) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          items: s.collection.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
-        }),
-      }
+      const updated = touch({
+        ...s.collection,
+        items: s.collection.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+      })
+      return sync(s, updated)
     }),
 
   deleteItem: (id) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          items: s.collection.items.filter((it) => it.id !== id),
-        }),
-      }
+      const updated = touch({ ...s.collection, items: s.collection.items.filter((it) => it.id !== id) })
+      return sync(s, updated)
     }),
 
   moveItem: (id, pos) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          items: s.collection.items.map((it) =>
-            it.id === id ? { ...it, canvas: pos } : it,
-          ),
-        }),
-      }
+      const updated = touch({
+        ...s.collection,
+        items: s.collection.items.map((it) => it.id === id ? { ...it, canvas: pos } : it),
+      })
+      return sync(s, updated)
     }),
 
   addField: (field) =>
     set((s) => {
       if (!s.collection) return s
       const newField: Field = { ...field, id: nanoid() }
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          schema: {
-            fields: [...s.collection.schema.fields, newField],
-            cardVisibleFields: [...s.collection.schema.cardVisibleFields, newField.id],
-          },
-        }),
-      }
+      const updated = touch({
+        ...s.collection,
+        schema: {
+          fields: [...s.collection.schema.fields, newField],
+          cardVisibleFields: [...s.collection.schema.cardVisibleFields, newField.id],
+        },
+      })
+      return sync(s, updated)
     }),
 
   updateField: (id, patch) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          schema: {
-            ...s.collection.schema,
-            fields: s.collection.schema.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)),
-          },
-        }),
-      }
+      const updated = touch({
+        ...s.collection,
+        schema: {
+          ...s.collection.schema,
+          fields: s.collection.schema.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+        },
+      })
+      return sync(s, updated)
     }),
 
   deleteField: (id) =>
@@ -171,109 +322,75 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
         delete fields[id]
         return { ...it, fields }
       })
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          schema: {
-            fields: s.collection.schema.fields.filter((f) => f.id !== id),
-            cardVisibleFields: s.collection.schema.cardVisibleFields.filter((fid) => fid !== id),
-          },
-          items,
-        }),
-      }
+      const updated = touch({
+        ...s.collection,
+        schema: {
+          fields: s.collection.schema.fields.filter((f) => f.id !== id),
+          cardVisibleFields: s.collection.schema.cardVisibleFields.filter((fid) => fid !== id),
+        },
+        items,
+      })
+      return sync(s, updated)
     }),
 
   addFrame: (frame) =>
     set((s) => {
       if (!s.collection) return s
       const newFrame: Frame = { ...frame, id: nanoid() }
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          canvas: { frames: [...s.collection.canvas.frames, newFrame] },
-        }),
-      }
+      const updated = touch({ ...s.collection, canvas: { frames: [...s.collection.canvas.frames, newFrame] } })
+      return sync(s, updated)
     }),
 
   updateFrame: (id, patch) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          canvas: {
-            frames: s.collection.canvas.frames.map((fr) =>
-              fr.id === id ? { ...fr, ...patch } : fr,
-            ),
-          },
-        }),
-      }
+      const updated = touch({
+        ...s.collection,
+        canvas: { frames: s.collection.canvas.frames.map((fr) => fr.id === id ? { ...fr, ...patch } : fr) },
+      })
+      return sync(s, updated)
     }),
 
   deleteFrame: (id) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: touch({
-          ...s.collection,
-          canvas: {
-            frames: s.collection.canvas.frames.filter((fr) => fr.id !== id),
-          },
-        }),
-      }
+      const updated = touch({ ...s.collection, canvas: { frames: s.collection.canvas.frames.filter((fr) => fr.id !== id) } })
+      return sync(s, updated)
     }),
 
   setViewport: (zoom, panX, panY) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        collection: {
-          ...s.collection,
-          views: {
-            ...s.collection.views,
-            canvas: { ...s.collection.views.canvas, zoom, panX, panY },
-          },
-        },
-      }
+      const updated = { ...s.collection, views: { ...s.collection.views, canvas: { ...s.collection.views.canvas, zoom, panX, panY } } }
+      return { collection: updated, projects: s.projects.map((p) => p.meta.id === updated.meta.id ? updated : p) }
     }),
 
   setTableState: (patch) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: {
-          ...s.collection,
-          views: { ...s.collection.views, table: { ...s.collection.views.table, ...patch } },
-        },
-      }
+      const updated = touch({ ...s.collection, views: { ...s.collection.views, table: { ...s.collection.views.table, ...patch } } })
+      return sync(s, updated)
     }),
 
   setBoardState: (patch) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: {
-          ...s.collection,
-          views: { ...s.collection.views, board: { ...s.collection.views.board, ...patch } },
-        },
-      }
+      const updated = touch({ ...s.collection, views: { ...s.collection.views, board: { ...s.collection.views.board, ...patch } } })
+      return sync(s, updated)
     }),
 
   setCanvasState: (patch) =>
     set((s) => {
       if (!s.collection) return s
-      return {
-        isDirty: true,
-        collection: {
-          ...s.collection,
-          views: { ...s.collection.views, canvas: { ...s.collection.views.canvas, ...patch } },
-        },
-      }
+      const updated = touch({ ...s.collection, views: { ...s.collection.views, canvas: { ...s.collection.views.canvas, ...patch } } })
+      return sync(s, updated)
     }),
+
+  loadSample: () => {
+    const col = createSampleCollection()
+    set((s) => {
+      const projects = [...s.projects.filter((p) => p.meta.id !== col.meta.id), col]
+      return { projects, activeProjectId: col.meta.id, collection: col, isDirty: false }
+    })
+  },
 }))
