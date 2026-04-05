@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type {
   Collection, Item, Field, Frame,
-  CanvasPosition, ViewStateTable, ViewStateBoard,
+  CanvasPosition, ViewStateTable, ViewStateBoard, ViewStateCanvas,
 } from '../types/collection'
 import { createSampleCollection } from '../data/sampleCollection'
 
@@ -37,6 +37,7 @@ interface CollectionStore {
   // View state actions
   setTableState: (patch: Partial<ViewStateTable>) => void
   setBoardState: (patch: Partial<ViewStateBoard>) => void
+  setCanvasState: (patch: Partial<ViewStateCanvas>) => void
 }
 
 const emptyCollection = (name: string): Collection => {
@@ -49,7 +50,7 @@ const emptyCollection = (name: string): Collection => {
     views: {
       table: { sortBy: 'name', sortDir: 'asc', filters: [] },
       board: { groupBy: null, sortBy: null, sortDir: 'asc', filters: [] },
-      canvas: { zoom: 1, panX: 0, panY: 0, activeFilters: [] },
+      canvas: { zoom: 1, panX: 0, panY: 0, activeFilters: [], groupBy: null, stackPositions: {} },
     },
   }
 }
@@ -260,6 +261,18 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
         collection: {
           ...s.collection,
           views: { ...s.collection.views, board: { ...s.collection.views.board, ...patch } },
+        },
+      }
+    }),
+
+  setCanvasState: (patch) =>
+    set((s) => {
+      if (!s.collection) return s
+      return {
+        isDirty: true,
+        collection: {
+          ...s.collection,
+          views: { ...s.collection.views, canvas: { ...s.collection.views.canvas, ...patch } },
         },
       }
     }),

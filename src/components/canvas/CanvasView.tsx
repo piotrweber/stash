@@ -1,15 +1,15 @@
-import { useRef, useCallback, useEffect, useState } from 'react'
+import { useRef, useCallback, useEffect, useState, useMemo } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import type { DragEndEvent, Modifier } from '@dnd-kit/core'
+import type { DragEndEvent, DragStartEvent, Modifier } from '@dnd-kit/core'
 import { useCollectionStore } from '../../store/collectionStore'
 import { ItemCard } from './ItemCard'
 import { FrameBox } from './FrameBox'
 import { CanvasToolbar } from './CanvasToolbar'
 import { ItemPopover } from './ItemPopover'
 import { ComparePopover } from './ComparePopover'
+import { CardStack } from './CardStack'
 import type { CanvasTool } from './CanvasToolbar'
 
-// Card dimensions in canvas-space (used for marquee hit test)
 const CARD_W = 120
 const CARD_H = 160
 
@@ -30,7 +30,7 @@ interface CanvasViewProps {
 }
 
 export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
-  const { collection, moveItem, setViewport, updateItem, deleteItem } = useCollectionStore()
+  const { collection, moveItem, setViewport, updateItem, deleteItem, setCanvasState } = useCollectionStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning = useRef(false)
   const lastPan = useRef({ x: 0, y: 0 })
@@ -40,7 +40,17 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
   const [grid, setGrid] = useState(40)
   const [marquee, setMarquee] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null)
 
-  const viewport = collection?.views.canvas ?? { zoom: 1, panX: 0, panY: 0 }
+  // Hover state for popovers (non-stack mode)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isDraggingRef = useRef(false)
+
+  // Expanded stacks
+  const [expandedStacks, setExpandedStacks] = useState<Set<string>>(new Set())
+
+  const viewport = collection?.views.canvas ?? { zoom: 1, panX: 0, panY: 0, activeFilters: [], groupBy: null, stackPositions: {} }
+  const groupBy = viewport.groupBy ?? null
+  const stackPositions = viewport.stackPositions ?? {}
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -58,7 +68,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
     }
   }, [grid, viewport.zoom])
 
-  // Zoom toward a screen point
   const zoomAt = useCallback((screenX: number, screenY: number, factor: number) => {
     const { zoom, panX, panY } = viewport
     const newZoom = Math.min(3, Math.max(0.25, zoom * factor))
@@ -67,7 +76,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
     setViewport(newZoom, newPanX, newPanY)
   }, [viewport, setViewport])
 
-  // Zoom toward cursor on wheel
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault()
     const rect = containerRef.current!.getBoundingClientRect()
@@ -82,7 +90,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
     return () => el.removeEventListener('wheel', handleWheel)
   }, [handleWheel])
 
-  // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Space') spaceDown.current = e.type === 'keydown'
@@ -111,7 +118,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Always allow middle-mouse or space pan
     if (e.button === 1 || spaceDown.current) {
       isPanning.current = true
       lastPan.current = { x: e.clientX, y: e.clientY }
@@ -132,7 +138,7 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
       return
     }
 
-    if (tool === 'select' && !onItem) {
+    if (tool === 'select' && !onItem && !groupBy) {
       const offset = getContainerOffset(e)
       setMarquee({ start: offset, end: offset })
       containerRef.current?.setPointerCapture(e.pointerId)
@@ -148,7 +154,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
       setViewport(viewport.zoom, viewport.panX + dx, viewport.panY + dy)
       return
     }
-
     if (marquee) {
       const offset = getContainerOffset(e)
       setMarquee((m) => m ? { ...m, end: offset } : null)
@@ -160,7 +165,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
       isPanning.current = false
       return
     }
-
     if (marquee && collection) {
       const screenRect: Rect = {
         x1: Math.min(marquee.start.x, marquee.end.x),
@@ -178,21 +182,73 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
           .map((item) => item.id)
         onSelectIds(hit)
       } else {
-        // Tap on background = clear selection
         onSelectIds([])
       }
       setMarquee(null)
     }
   }
 
+  const handleDragStart = (_e: DragStartEvent) => {
+    isDraggingRef.current = true
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    setHoveredId(null)
+  }
+
   const handleDragEnd = (e: DragEndEvent) => {
-    const { active, delta } = e
-    const id = active.id as string
-    const item = collection?.items.find((it) => it.id === id)
-    if (!item) return
-    const newX = snap(item.canvas.x + delta.x / viewport.zoom, grid)
-    const newY = snap(item.canvas.y + delta.y / viewport.zoom, grid)
-    moveItem(id, { x: newX, y: newY })
+    isDraggingRef.current = false
+    const { active, delta, over } = e
+    const activeId = active.id as string
+    const type = active.data.current?.type as string | undefined
+
+    // Stack drag — move the whole stack
+    if (type === 'stack') {
+      const groupValue = active.data.current?.groupValue as string
+      const currentPos = stackPositions[groupValue] ?? { x: 80, y: 80 }
+      setCanvasState({
+        stackPositions: {
+          ...stackPositions,
+          [groupValue]: {
+            x: snap(currentPos.x + delta.x / viewport.zoom, grid),
+            y: snap(currentPos.y + delta.y / viewport.zoom, grid),
+          },
+        },
+      })
+      return
+    }
+
+    // Card drag in stack mode — reassign to target stack
+    if (type === 'card' && groupBy) {
+      if (!over) return
+      const targetGroupValue = (over.id as string).replace('stack:', '')
+      const sourceGroupValue = active.data.current?.groupValue as string
+      if (targetGroupValue !== sourceGroupValue) {
+        const item = collection?.items.find((it) => it.id === activeId)
+        if (item) {
+          updateItem(activeId, {
+            fields: {
+              ...item.fields,
+              [groupBy]: targetGroupValue === '__none__' ? null : targetGroupValue,
+            },
+          })
+        }
+      }
+      return
+    }
+
+    // Normal item drag (no stack mode)
+    if (!groupBy) {
+      const item = collection?.items.find((it) => it.id === activeId)
+      if (!item) return
+      const newX = snap(item.canvas.x + delta.x / viewport.zoom, grid)
+      const newY = snap(item.canvas.y + delta.y / viewport.zoom, grid)
+      moveItem(activeId, { x: newX, y: newY })
+    }
+  }
+
+  const centerOfContainer = () => {
+    const el = containerRef.current
+    if (!el) return { x: 400, y: 300 }
+    return { x: el.clientWidth / 2, y: el.clientHeight / 2 }
   }
 
   const handleCleanup = () => {
@@ -209,11 +265,42 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
     })
   }
 
-  const centerOfContainer = () => {
-    const el = containerRef.current
-    if (!el) return { x: 400, y: 300 }
-    return { x: el.clientWidth / 2, y: el.clientHeight / 2 }
-  }
+  // Compute groups for stack mode
+  const groups = useMemo(() => {
+    if (!collection || !groupBy) return []
+    const field = collection.schema.fields.find((f) => f.id === groupBy)
+    if (!field) return []
+
+    const grouped: Record<string, typeof collection.items> = {}
+    for (const item of collection.items) {
+      const val = item.fields[groupBy]
+      let keys: string[]
+      if (val == null || val === '') {
+        keys = ['__none__']
+      } else if (Array.isArray(val)) {
+        keys = val.length > 0 ? val.map(String) : ['__none__']
+      } else {
+        keys = [String(val)]
+      }
+      for (const k of keys) {
+        grouped[k] ??= []
+        grouped[k].push(item)
+      }
+    }
+
+    // Order: field options first, then __none__
+    const orderedKeys = [
+      ...field.options.filter((o) => grouped[o]),
+      ...Object.keys(grouped).filter((k) => !field.options.includes(k)),
+    ]
+
+    return orderedKeys.map((key, i) => ({
+      key,
+      label: key === '__none__' ? '(none)' : key,
+      items: grouped[key] ?? [],
+      autoPos: { x: 80 + i * 180, y: 80 },
+    }))
+  }, [collection, groupBy])
 
   if (!collection) {
     return (
@@ -226,7 +313,6 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
 
   const { zoom, panX, panY } = viewport
 
-  // Convert a canvas item position to a screen-space rect (relative to the canvas container)
   const itemScreenRect = (item: { canvas: { x: number; y: number } }) => ({
     left: item.canvas.x * zoom + panX,
     top: item.canvas.y * zoom + panY,
@@ -234,17 +320,18 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
     bottom: (item.canvas.y + CARD_H) * zoom + panY,
   })
 
-  // Popover data
-  const singleItem = selectedIds.length === 1
+  const singleItem = !groupBy && selectedIds.length === 1
     ? collection.items.find((it) => it.id === selectedIds[0])
     : null
-
-  const comparingIds = selectedIds.length === 2 ? selectedIds as [string, string] : null
-
+  const comparingIds = !groupBy && selectedIds.length === 2 ? selectedIds as [string, string] : null
   const containerW = containerRef.current?.clientWidth ?? 800
   const containerH = containerRef.current?.clientHeight ?? 600
 
-  // Marquee rect in screen space
+  // Hover popover item (non-stack mode, not in comparing state)
+  const hoveredItem = !groupBy && !comparingIds && hoveredId
+    ? collection.items.find((it) => it.id === hoveredId)
+    : null
+
   const marqueeRect = marquee
     ? {
         left: Math.min(marquee.start.x, marquee.end.x),
@@ -257,7 +344,7 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
   const activeCursor = isPanning.current || spaceDown.current || tool === 'pan' ? 'grab' : marquee ? 'crosshair' : 'default'
 
   return (
-    <DndContext sensors={sensors} modifiers={[snapModifier]} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} modifiers={groupBy ? [] : [snapModifier]} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex-1 overflow-hidden relative bg-gray-50">
         <div
           ref={containerRef}
@@ -279,29 +366,71 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
             />
           )}
 
-          {/* Transform layer */}
-          <div
-            style={{
-              transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
-              transformOrigin: '0 0',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-            }}
-          >
-            {collection.canvas.frames.map((frame) => (
-              <FrameBox key={frame.id} frame={frame} />
-            ))}
-            {collection.items.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                schema={collection.schema}
-                isSelected={selectedIds.includes(item.id)}
-                onClick={() => onSelectIds([item.id])}
-              />
-            ))}
-          </div>
+          {groupBy ? (
+            /* ---- STACK MODE ---- */
+            groups.map((group) => {
+              const pos = stackPositions[group.key] ?? group.autoPos
+              return (
+                <CardStack
+                  key={group.key}
+                  groupValue={group.key}
+                  label={group.label}
+                  items={group.items}
+                  schema={collection.schema}
+                  screenX={pos.x * zoom + panX}
+                  screenY={pos.y * zoom + panY}
+                  isExpanded={expandedStacks.has(group.key)}
+                  isOver={false}
+                  onToggle={() =>
+                    setExpandedStacks((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(group.key)) next.delete(group.key)
+                      else next.add(group.key)
+                      return next
+                    })
+                  }
+                />
+              )
+            })
+          ) : (
+            /* ---- NORMAL MODE ---- */
+            <>
+              {/* Transform layer */}
+              <div
+                style={{
+                  transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
+                  transformOrigin: '0 0',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                }}
+              >
+                {collection.canvas.frames.map((frame) => (
+                  <FrameBox key={frame.id} frame={frame} />
+                ))}
+                {collection.items.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    schema={collection.schema}
+                    isSelected={selectedIds.includes(item.id)}
+                    onClick={() => onSelectIds([item.id])}
+                    onMouseEnter={() => {
+                      if (isDraggingRef.current) return
+                      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                      hoverTimeoutRef.current = setTimeout(() => {
+                        if (!isDraggingRef.current) setHoveredId(item.id)
+                      }, 300)
+                    }}
+                    onMouseLeave={() => {
+                      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                      hoverTimeoutRef.current = setTimeout(() => setHoveredId(null), 200)
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Marquee selection rect */}
           {marqueeRect && (
@@ -323,20 +452,38 @@ export function CanvasView({ selectedIds, onSelectIds }: CanvasViewProps) {
           grid={grid}
           onGridChange={setGrid}
           zoom={zoom}
-          onZoomIn={() => {
-            const c = centerOfContainer()
-            zoomAt(c.x, c.y, 1.25)
-          }}
-          onZoomOut={() => {
-            const c = centerOfContainer()
-            zoomAt(c.x, c.y, 1 / 1.25)
-          }}
+          onZoomIn={() => { const c = centerOfContainer(); zoomAt(c.x, c.y, 1.25) }}
+          onZoomOut={() => { const c = centerOfContainer(); zoomAt(c.x, c.y, 1 / 1.25) }}
           onZoomReset={() => setViewport(1, 0, 0)}
           onCleanup={handleCleanup}
+          fields={collection.schema.fields}
+          groupBy={groupBy}
+          onGroupByChange={(fieldId) => {
+            setCanvasState({ groupBy: fieldId })
+            setExpandedStacks(new Set())
+          }}
         />
 
-        {/* Single-item popover */}
-        {singleItem && (
+        {/* Hover popover (non-stack mode) */}
+        {hoveredItem && !singleItem && !comparingIds && (
+          <div
+            onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current) }}
+            onMouseLeave={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); setHoveredId(null) }}
+          >
+            <ItemPopover
+              key={hoveredItem.id}
+              item={hoveredItem}
+              schema={collection.schema}
+              anchorRect={itemScreenRect(hoveredItem)}
+              onUpdate={(patch) => updateItem(hoveredItem.id, patch)}
+              onDelete={() => { deleteItem(hoveredItem.id); onSelectIds([]) }}
+              onClose={() => setHoveredId(null)}
+            />
+          </div>
+        )}
+
+        {/* Click-selected single item popover */}
+        {singleItem && !hoveredItem && (
           <ItemPopover
             key={singleItem.id}
             item={singleItem}

@@ -5,6 +5,7 @@ export interface Field {
   name: string
   type: FieldType
   options: string[]
+  optionColors?: Record<string, string>   // option value → color key
 }
 
 export interface CanvasPosition {
@@ -55,6 +56,8 @@ export interface ViewStateCanvas {
   panX: number
   panY: number
   activeFilters: Filter[]
+  groupBy: string | null
+  stackPositions: Record<string, CanvasPosition>
 }
 
 export interface Schema {

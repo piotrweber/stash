@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useCollectionStore } from '../../store/collectionStore'
+import { OPTION_COLORS, COLOR_KEYS } from '../shared/optionColors'
 import type { FieldType } from '../../types/collection'
 
 interface SchemaEditorProps {
@@ -88,7 +89,9 @@ export function SchemaEditor({ onClose }: SchemaEditorProps) {
                 {(field.type === 'select' || field.type === 'multi-select') && (
                   <OptionsEditor
                     options={field.options}
+                    optionColors={field.optionColors ?? {}}
                     onChange={(opts) => updateField(field.id, { options: opts })}
+                    onColorChange={(colors) => updateField(field.id, { optionColors: colors })}
                   />
                 )}
 
@@ -146,13 +149,15 @@ export function SchemaEditor({ onClose }: SchemaEditorProps) {
 }
 
 function OptionsEditor({
-  options,
-  onChange,
+  options, optionColors, onChange, onColorChange,
 }: {
   options: string[]
+  optionColors: Record<string, string>
   onChange: (opts: string[]) => void
+  onColorChange: (colors: Record<string, string>) => void
 }) {
   const [input, setInput] = useState('')
+  const [pickingColorFor, setPickingColorFor] = useState<string | null>(null)
 
   const add = () => {
     const v = input.trim()
@@ -161,24 +166,61 @@ function OptionsEditor({
     setInput('')
   }
 
+  const setColor = (opt: string, colorKey: string) => {
+    onColorChange({ ...optionColors, [opt]: colorKey })
+    setPickingColorFor(null)
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap gap-1">
-        {options.map((opt) => (
-          <span
-            key={opt}
-            className="flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full"
-          >
-            {opt}
-            <button
-              onClick={() => onChange(options.filter((o) => o !== opt))}
-              className="text-gray-400 hover:text-red-500 leading-none"
-            >
-              ×
-            </button>
-          </span>
-        ))}
+      <div className="flex flex-col gap-1">
+        {options.map((opt) => {
+          const colorKey = optionColors[opt] ?? 'gray'
+          const c = OPTION_COLORS[colorKey] ?? OPTION_COLORS.gray
+          return (
+            <div key={opt} className="flex items-center gap-1.5">
+              {/* Color dot — click to pick */}
+              <button
+                onClick={() => setPickingColorFor(pickingColorFor === opt ? null : opt)}
+                style={{ background: c.bg, borderColor: c.border, border: '1px solid' }}
+                className="w-5 h-5 rounded-full shrink-0 transition-transform hover:scale-110"
+                title="Pick color"
+              />
+              <span
+                style={{ backgroundColor: c.bg, color: c.text, borderColor: c.border, border: '1px solid' }}
+                className="text-xs px-2 py-0.5 rounded-full flex-1"
+              >
+                {opt}
+              </span>
+              <button
+                onClick={() => onChange(options.filter((o) => o !== opt))}
+                className="text-gray-300 hover:text-red-500 leading-none text-base"
+              >
+                ×
+              </button>
+            </div>
+          )
+        })}
       </div>
+
+      {/* Color picker */}
+      {pickingColorFor && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {COLOR_KEYS.map((key) => {
+            const c = OPTION_COLORS[key]
+            return (
+              <button
+                key={key}
+                onClick={() => setColor(pickingColorFor, key)}
+                style={{ background: c.bg, borderColor: optionColors[pickingColorFor] === key ? c.text : c.border, border: '2px solid' }}
+                className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                title={key}
+              />
+            )
+          })}
+        </div>
+      )}
+
       <div className="flex gap-1">
         <input
           value={input}
@@ -187,12 +229,7 @@ function OptionsEditor({
           placeholder="Add option…"
           className="flex-1 border border-gray-100 rounded px-2 py-0.5 text-xs focus:outline-none focus:border-indigo-300 bg-gray-50"
         />
-        <button
-          onClick={add}
-          className="text-xs text-indigo-600 hover:text-indigo-800 px-1"
-        >
-          +
-        </button>
+        <button onClick={add} className="text-xs text-indigo-600 hover:text-indigo-800 px-1">+</button>
       </div>
     </div>
   )

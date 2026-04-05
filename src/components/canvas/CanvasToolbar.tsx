@@ -1,3 +1,5 @@
+import type { Field } from '../../types/collection'
+
 export type CanvasTool = 'select' | 'pan'
 
 const GRID_OPTIONS = [
@@ -17,6 +19,9 @@ interface CanvasToolbarProps {
   onZoomOut: () => void
   onZoomReset: () => void
   onCleanup: () => void
+  fields: Field[]
+  groupBy: string | null
+  onGroupByChange: (fieldId: string | null) => void
 }
 
 export function CanvasToolbar({
@@ -24,19 +29,22 @@ export function CanvasToolbar({
   grid, onGridChange,
   zoom, onZoomIn, onZoomOut, onZoomReset,
   onCleanup,
+  fields, groupBy, onGroupByChange,
 }: CanvasToolbarProps) {
+  const groupableFields = fields.filter((f) => f.type === 'select' || f.type === 'multi-select')
+
   return (
     <div className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1 bg-white border border-gray-200 rounded-xl shadow-md px-2 py-3 select-none">
 
       {/* Tool selector */}
-      <ToolBtn active={tool === 'select'} title="Select (S)" onClick={() => onToolChange('select')}>
-        <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
-          <path d="M2 2l4.5 10 1.5-4 4-1.5L2 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none"/>
-        </svg>
-      </ToolBtn>
       <ToolBtn active={tool === 'pan'} title="Pan (H)" onClick={() => onToolChange('pan')}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path d="M9 11V6a2 2 0 0 1 4 0v5M9 11a2 2 0 0 0-2 2v1M9 11h4m0 0a2 2 0 0 1 2 2v1m0 0a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h6Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </ToolBtn>
+      <ToolBtn active={tool === 'select'} title="Select (S)" onClick={() => onToolChange('select')}>
+        <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
+          <path d="M2 2l4.5 10 1.5-4 4-1.5L2 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none"/>
         </svg>
       </ToolBtn>
 
@@ -66,6 +74,30 @@ export function CanvasToolbar({
           <rect x="10" y="10" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/>
         </svg>
       </ToolBtn>
+
+      {groupableFields.length > 0 && (
+        <>
+          <Divider />
+          <span className="text-[10px] text-gray-400 font-medium mt-0.5">Stack</span>
+          <ToolBtn
+            active={groupBy === null}
+            title="No grouping"
+            onClick={() => onGroupByChange(null)}
+          >
+            <span className="text-xs font-medium">Off</span>
+          </ToolBtn>
+          {groupableFields.map((f) => (
+            <ToolBtn
+              key={f.id}
+              active={groupBy === f.id}
+              title={`Stack by ${f.name}`}
+              onClick={() => onGroupByChange(f.id)}
+            >
+              <span className="text-[10px] font-medium leading-tight text-center">{f.name}</span>
+            </ToolBtn>
+          ))}
+        </>
+      )}
 
       <Divider />
 

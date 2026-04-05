@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { nanoid } from 'nanoid'
+import type { ReactNode } from 'react'
 import type { Filter, Field } from '../../types/collection'
 
 type Op = Filter['op']
@@ -16,6 +16,10 @@ interface FilterSortBarProps {
   onSortChange: (sortBy: string | null, sortDir: 'asc' | 'desc') => void
   filters: Filter[]
   onFiltersChange: (filters: Filter[]) => void
+  groupBy?: string | null
+  onGroupByChange?: (fieldId: string | null) => void
+  groupableFields?: SortableField[]
+  endSlot?: React.ReactNode
 }
 
 function opsForField(field: FilterableField | undefined): Op[] {
@@ -37,6 +41,8 @@ export function FilterSortBar({
   sortFields, filterFields, schemaFields,
   sortBy, sortDir, onSortChange,
   filters, onFiltersChange,
+  groupBy, onGroupByChange, groupableFields,
+  endSlot,
 }: FilterSortBarProps) {
   const [showFilter, setShowFilter] = useState(false)
   const [showSort, setShowSort] = useState(false)
@@ -52,7 +58,6 @@ export function FilterSortBar({
     const next = filters.map((f, i) => {
       if (i !== idx) return f
       const updated = { ...f, ...patch }
-      // reset value when field or op changes
       if (patch.fieldId !== undefined || patch.op !== undefined) updated.value = ''
       return updated
     })
@@ -66,11 +71,13 @@ export function FilterSortBar({
   }
 
   const sortLabel = sortBy ? (sortFields.find((f) => f.id === sortBy)?.name ?? sortBy) : null
+  const hasActive = filters.length > 0 || !!sortBy || !!groupBy
 
   return (
     <div className="border-b border-gray-100 bg-white shrink-0">
       {/* Toolbar row */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5">
+      <div className="flex items-center gap-1 px-3 py-1.5 flex-wrap">
+        {/* Filter button */}
         <button
           onClick={() => { setShowFilter((v) => !v); setShowSort(false) }}
           className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
@@ -90,6 +97,7 @@ export function FilterSortBar({
           )}
         </button>
 
+        {/* Sort button */}
         <button
           onClick={() => { setShowSort((v) => !v); setShowFilter(false) }}
           className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
@@ -109,14 +117,50 @@ export function FilterSortBar({
           )}
         </button>
 
-        {(filters.length > 0 || sortBy) && (
+        {/* Group by — always visible when groupable fields exist */}
+        {onGroupByChange && groupableFields && groupableFields.length > 0 && (
+          <div className="flex items-center gap-1 border-l border-gray-100 pl-2 ml-0.5">
+            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mr-0.5">Group</span>
+            <button
+              onClick={() => onGroupByChange(null)}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                !groupBy ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-700'
+              }`}
+            >
+              None
+            </button>
+            {groupableFields.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => onGroupByChange(f.id)}
+                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  groupBy === f.id
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {hasActive && (
           <button
-            onClick={() => { onFiltersChange([]); onSortChange(null, 'asc'); setShowFilter(false); setShowSort(false) }}
-            className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={() => {
+              onFiltersChange([])
+              onSortChange(null, 'asc')
+              onGroupByChange?.(null)
+              setShowFilter(false)
+              setShowSort(false)
+            }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
             Clear all
           </button>
         )}
+
+        {endSlot && <div className="ml-auto pl-2">{endSlot}</div>}
       </div>
 
       {/* Filter panel */}
@@ -130,7 +174,6 @@ export function FilterSortBar({
 
             return (
               <div key={idx} className="flex items-center gap-1.5 text-xs">
-                {/* Field */}
                 <select
                   value={filter.fieldId}
                   onChange={(e) => updateFilter(idx, { fieldId: e.target.value })}
@@ -141,7 +184,6 @@ export function FilterSortBar({
                   ))}
                 </select>
 
-                {/* Operator */}
                 <select
                   value={filter.op}
                   onChange={(e) => updateFilter(idx, { op: e.target.value as Op })}
@@ -152,7 +194,6 @@ export function FilterSortBar({
                   ))}
                 </select>
 
-                {/* Value */}
                 {hasOptions && filter.op === 'is_any_of' ? (
                   <div className="flex flex-wrap gap-1">
                     {schemaField!.options.map((opt) => {

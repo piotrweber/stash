@@ -1,4 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
+import { optionStyle } from '../shared/optionColors'
 import type { Item, Schema } from '../../types/collection'
 
 interface ItemCardProps {
@@ -6,15 +7,12 @@ interface ItemCardProps {
   schema: Schema
   isSelected: boolean
   onClick: () => void
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
 }
 
-const RARITY_COLORS: Record<string, string> = {
-  Common: 'bg-gray-100 text-gray-600',
-  Rare: 'bg-blue-100 text-blue-700',
-  Epic: 'bg-purple-100 text-purple-700',
-}
 
-export function ItemCard({ item, schema, isSelected, onClick }: ItemCardProps) {
+export function ItemCard({ item, schema, isSelected, onClick, onMouseEnter, onMouseLeave }: ItemCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.id,
     data: { canvasX: item.canvas.x, canvasY: item.canvas.y },
@@ -28,6 +26,8 @@ export function ItemCard({ item, schema, isSelected, onClick }: ItemCardProps) {
       {...attributes}
       {...listeners}
       onClick={(e) => { e.stopPropagation(); onClick() }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         position: 'absolute',
         left: item.canvas.x,
@@ -58,9 +58,14 @@ export function ItemCard({ item, schema, isSelected, onClick }: ItemCardProps) {
             const val = item.fields[field.id]
             if (val == null || val === '') return null
             const label = Array.isArray(val) ? val.join(', ') : String(val)
-            const colorClass = RARITY_COLORS[label] ?? 'bg-gray-100 text-gray-600'
+            const colorKey = field.optionColors?.[label]
+            const style = optionStyle(colorKey)
             return (
-              <span key={field.id} className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${colorClass}`}>
+              <span
+                key={field.id}
+                style={{ ...style, border: `1px solid ${style.borderColor}` }}
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+              >
                 {label}
               </span>
             )
