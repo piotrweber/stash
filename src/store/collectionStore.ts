@@ -15,6 +15,7 @@ interface CollectionStore {
   collection: Collection | null
 
   // Project management
+  renameProject: (name: string) => void
   createBlankProject: (name: string) => void
   createProjectFromCsv: (name: string, csvText: string) => void
   createProjectFromImages: (name: string, images: { name: string; dataUrl: string }[]) => void
@@ -117,6 +118,13 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   activeProjectId: null,
   isDirty: false,
   collection: null,
+
+  renameProject: (name) =>
+    set((s) => {
+      if (!s.collection) return s
+      const updated = touch({ ...s.collection, meta: { ...s.collection.meta, name } })
+      return sync(s, updated)
+    }),
 
   createBlankProject: (name) => {
     const col = emptyCollection(name)

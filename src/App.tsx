@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useCollectionStore } from './store/collectionStore'
-import { Topbar } from './components/shared/Topbar'
 import { TableView } from './components/table/TableView'
 import { ProjectsView } from './components/projects/ProjectsView'
 import { SchemaEditor } from './components/sidebar/SchemaEditor'
@@ -8,9 +7,8 @@ import { SchemaEditor } from './components/sidebar/SchemaEditor'
 export default function App() {
   const [screen, setScreen] = useState<'projects' | 'project'>('projects')
   const [showSchema, setShowSchema] = useState(false)
-  const { collection, saveProject, addItem, openProject, closeProject } = useCollectionStore()
+  const { saveProject, openProject } = useCollectionStore()
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -33,24 +31,16 @@ export default function App() {
     setShowSchema(false)
   }
 
-  const handleAddItem = () => {
-    if (!collection) return
-    addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 80, y: 80 } })
-  }
-
   return (
     <div className="flex flex-col h-screen bg-white overflow-hidden">
-      {screen === 'project' && (
-        <Topbar
-          onGoToProjects={handleGoToProjects}
-          onAddItem={handleAddItem}
-          onShowSchema={() => setShowSchema(true)}
-        />
-      )}
-
       <div className="flex flex-1 min-h-0">
         {screen === 'projects' && <ProjectsView onOpen={handleOpenProject} />}
-        {screen === 'project' && <TableView />}
+        {screen === 'project' && (
+          <TableView
+            onGoToProjects={handleGoToProjects}
+            onShowSchema={() => setShowSchema(true)}
+          />
+        )}
       </div>
 
       {showSchema && <SchemaEditor onClose={() => setShowSchema(false)} />}

@@ -20,6 +20,7 @@ interface FilterSortBarProps {
   onGroupByChange?: (fieldId: string | null) => void
   groupableFields?: SortableField[]
   endSlot?: React.ReactNode
+  bare?: boolean
 }
 
 function opsForField(field: FilterableField | undefined): Op[] {
@@ -43,6 +44,7 @@ export function FilterSortBar({
   filters, onFiltersChange,
   groupBy, onGroupByChange, groupableFields,
   endSlot,
+  bare = false,
 }: FilterSortBarProps) {
   const [showFilter, setShowFilter] = useState(false)
   const [showSort, setShowSort] = useState(false)
@@ -73,10 +75,10 @@ export function FilterSortBar({
   const sortLabel = sortBy ? (sortFields.find((f) => f.id === sortBy)?.name ?? sortBy) : null
   const hasActive = filters.length > 0 || !!sortBy || !!groupBy
 
-  return (
-    <div className="border-b border-gray-100 bg-white shrink-0">
+  const inner = (
+    <>
       {/* Toolbar row */}
-      <div className="flex items-center gap-1 px-3 py-1.5 flex-wrap">
+      <div className="flex items-center gap-1 flex-wrap">
         {/* Filter button */}
         <button
           onClick={() => { setShowFilter((v) => !v); setShowSort(false) }}
@@ -165,7 +167,7 @@ export function FilterSortBar({
 
       {/* Filter panel */}
       {showFilter && (
-        <div className="px-3 pb-2 flex flex-col gap-1.5">
+        <div className="pt-1.5 pb-1.5 flex flex-col gap-1.5">
           {filters.map((filter, idx) => {
             const field = filterFields.find((f) => f.id === filter.fieldId)
             const ops = opsForField(field)
@@ -252,7 +254,7 @@ export function FilterSortBar({
 
       {/* Sort panel */}
       {showSort && (
-        <div className="px-3 pb-2 flex items-center gap-2">
+        <div className="pt-1.5 pb-1.5 flex items-center gap-2">
           <select
             value={sortBy ?? ''}
             onChange={(e) => onSortChange(e.target.value || null, sortDir)}
@@ -288,6 +290,14 @@ export function FilterSortBar({
           )}
         </div>
       )}
+    </>
+  )
+
+  if (bare) return <>{inner}</>
+
+  return (
+    <div className="border-b border-gray-100 bg-white shrink-0 px-3 py-1.5">
+      {inner}
     </div>
   )
 }

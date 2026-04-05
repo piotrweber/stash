@@ -18,8 +18,13 @@ import type { Item, Field, Collection } from '../../types/collection'
 
 // ─── Top-level view ──────────────────────────────────────────────────────────
 
-export function TableView() {
-  const { collection, addItem, updateItem, setTableState } = useCollectionStore()
+interface TableViewProps {
+  onGoToProjects: () => void
+  onShowSchema: () => void
+}
+
+export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
+  const { collection, addItem, updateItem, setTableState, renameProject, saveProject, isDirty } = useCollectionStore()
   const [viewMode, setViewMode] = useState<'catalogue' | 'focus'>('catalogue')
   const [groupBy, setGroupBy] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -123,92 +128,142 @@ export function TableView() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 flex flex-col min-h-0">
-        {viewMode === 'catalogue' ? (
-          <FilterSortBar
-            sortFields={sortFields}
-            filterFields={filterFields}
-            schemaFields={fields}
-            sortBy={tableState.sortBy}
-            sortDir={tableState.sortDir}
-            onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
-            filters={tableState.filters}
-            onFiltersChange={(f) => setTableState({ filters: f })}
-            groupBy={groupBy}
-            onGroupByChange={setGroupBy}
-            groupableFields={groupableFields}
-            endSlot={<ViewModeToggle mode={viewMode} onChange={setViewMode} />}
-          />
-        ) : (
-          <FocusModeBar onExit={() => setViewMode('catalogue')} toggle={<ViewModeToggle mode={viewMode} onChange={setViewMode} />} />
-        )}
+
+        {/* ── Fixed header ── */}
+        <div className="shrink-0 bg-white border-b border-gray-100">
+          <div className="max-w-3xl mx-auto px-8 pt-8 pb-3">
+            {/* Back link */}
+            <button
+              onClick={onGoToProjects}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors mb-3"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Projects
+            </button>
+
+            {/* Title row */}
+            <div className="flex items-center gap-3">
+              <ProjectTitleInput
+                value={collection.meta.name}
+                onSave={(name) => renameProject(name)}
+              />
+              <button
+                onClick={() => {
+                  const json = saveProject()
+                  if (!json || !collection) return
+                  const blob = new Blob([json], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${collection.meta.name}.json`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className={`shrink-0 text-xs px-2.5 py-1 rounded border transition-colors ${
+                  isDirty
+                    ? 'border-amber-300 text-amber-600 hover:bg-amber-50'
+                    : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
+                }`}
+              >
+                {isDirty ? 'Save' : 'Saved'}
+              </button>
+            </div>
+
+            {/* Controls row */}
+            <div className="flex items-center gap-1 mt-3 flex-wrap">
+              {viewMode === 'catalogue' && (
+                <button
+                  onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                >
+                  + Add item
+                </button>
+              )}
+              <FilterSortBar
+                bare
+                sortFields={sortFields}
+                filterFields={filterFields}
+                schemaFields={fields}
+                sortBy={tableState.sortBy}
+                sortDir={tableState.sortDir}
+                onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
+                filters={tableState.filters}
+                onFiltersChange={(f) => setTableState({ filters: f })}
+                groupBy={groupBy}
+                onGroupByChange={setGroupBy}
+                groupableFields={groupableFields}
+                endSlot={<ViewModeToggle mode={viewMode} onChange={setViewMode} />}
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="flex-1 overflow-y-auto">
-          {viewMode === 'focus' ? (
-            <div className="max-w-2xl mx-auto py-8 px-8 flex flex-col">
-              {grouped ? (
-                grouped.map(({ key, items }) => (
-                  <div key={key}>
-                    <FocusGroupHeader label={key} field={groupField} />
-                    {items.map((item) => (
-                      <FocusItemCard
+          <div className="max-w-3xl mx-auto px-8">
+
+            {/* ── Content ── */}
+            {viewMode === 'focus' ? (
+              <div className="py-6 flex flex-col">
+                {grouped ? (
+                  grouped.map(({ key, items }) => (
+                    <div key={key}>
+                      <FocusGroupHeader label={key} field={groupField} />
+                      {items.map((item) => (
+                        <FocusItemCard
+                          key={item.id}
+                          item={item}
+                          onUpdate={(patch) => updateItem(item.id, patch)}
+                        />
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  processedItems.map((item) => (
+                    <FocusItemCard
+                      key={item.id}
+                      item={item}
+                      onUpdate={(patch) => updateItem(item.id, patch)}
+                    />
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="pt-4 pb-8 flex flex-col gap-6">
+                {grouped ? (
+                  <>
+                    {grouped.map(({ key, items }) => (
+                      <GroupSection
+                        key={key}
+                        groupKey={key}
+                        items={items}
+                        fields={fields}
+                        isOver={overGroup === key}
+                        isDragging={!!draggingId}
+                        onUpdate={(id, patch) => updateItem(id, patch)}
+                        groupField={groupField}
+                        collection={collection}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {processedItems.map((item) => (
+                      <ItemCard
                         key={item.id}
                         item={item}
+                        fields={fields}
+                        draggable={false}
                         onUpdate={(patch) => updateItem(item.id, patch)}
                       />
                     ))}
                   </div>
-                ))
-              ) : (
-                processedItems.map((item) => (
-                  <FocusItemCard
-                    key={item.id}
-                    item={item}
-                    onUpdate={(patch) => updateItem(item.id, patch)}
-                  />
-                ))
-              )}
-            </div>
-          ) : (
-            <div className="max-w-3xl mx-auto py-4 px-4 flex flex-col gap-6">
-              {grouped ? (
-                <>
-                  {grouped.map(({ key, items }) => (
-                    <GroupSection
-                      key={key}
-                      groupKey={key}
-                      items={items}
-                      fields={fields}
-                      isOver={overGroup === key}
-                      isDragging={!!draggingId}
-                      onUpdate={(id, patch) => updateItem(id, patch)}
-                      groupField={groupField}
-                      collection={collection}
-                    />
-                  ))}
-                  {groupField && <AddCategoryRow field={groupField} />}
-                </>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {processedItems.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      fields={fields}
-                      draggable={false}
-                      onUpdate={(patch) => updateItem(item.id, patch)}
-                    />
-                  ))}
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
-              <button
-                onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
-                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors text-left py-1"
-              >
-                + Add item
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -1059,5 +1114,61 @@ function FocusTextarea({ value, onSave, placeholder = '' }: {
       placeholder={placeholder}
       className="block w-full bg-transparent border-none outline-none font-serif text-base text-gray-600 leading-relaxed resize-none placeholder-gray-300"
     />
+  )
+}
+
+// ─── Project title input ──────────────────────────────────────────────────────
+
+function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => { setDraft(value) }, [value])
+
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (draft.trim() && draft !== value) onSave(draft.trim()) }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+        if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
+      }}
+      className="block w-full bg-transparent border-none outline-none text-3xl font-bold text-gray-900 placeholder-gray-300 leading-tight"
+      placeholder="Untitled"
+    />
+  )
+}
+
+// ─── Upload images button ─────────────────────────────────────────────────────
+
+function UploadImagesButton() {
+  const { addItem } = useCollectionStore()
+
+  const handleClick = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.multiple = true
+    input.onchange = async () => {
+      const files = Array.from(input.files ?? [])
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const dataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.readAsDataURL(file)
+        })
+        addItem({ name: file.name.replace(/\.[^.]+$/, ''), description: '', imagePath: dataUrl, fields: {}, canvas: { x: 0, y: 0 } })
+      }
+    }
+    input.click()
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+    >
+      Upload images
+    </button>
   )
 }
