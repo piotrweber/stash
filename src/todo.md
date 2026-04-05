@@ -1,7 +1,5 @@
 Header should collapse to the project name when scrolling
 
-Can you use the carbon design system?
-https://react.carbondesignsystem.com/?path=/docs/components-fileuploader--overview
 
 Filter should help with understand what is missing and what is done
 Add image (set / not set) to filters
@@ -27,7 +25,13 @@ Bulk selection should be applied after users change an option
 
 Editable categories like in notion, plus a way to add a new one
 
-Zoom levels: max is 100%, then 75% and 50%
+There's no wat to add groups
+
+New project: add and cancel are covering the area for properties, propertis should be editable when adding a new project
+
+Remove zoom, add a third cards view only image and name, sorted in columns and rows
+
+Add stats bar with count of elements, how many missing images, how many missing cats, and so on
 
 Export
 Remove "canvas": {

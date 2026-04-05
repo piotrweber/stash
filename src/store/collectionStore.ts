@@ -212,7 +212,21 @@ export const useCollectionStore = create<CollectionStore>()(
 
     for (let ci = 0; ci < headers.length; ci++) {
       if (ci === nameColIdx || ci === descColIdx) continue
-      const newField: Field = { id: nanoid(), name: headers[ci], type: 'text', options: [] }
+      // Collect unique non-empty values to decide field type
+      const seen: string[] = []
+      const seenSet = new Set<string>()
+      for (const row of dataRows) {
+        const v = row[ci]?.trim()
+        if (v && !seenSet.has(v)) { seenSet.add(v); seen.push(v) }
+      }
+      // Treat as select if there are repeated values and a manageable number of options
+      const isSelect = seenSet.size < dataRows.length && seenSet.size <= 20
+      const newField: Field = {
+        id: nanoid(),
+        name: headers[ci],
+        type: isSelect ? 'select' : 'text',
+        options: isSelect ? seen : [],
+      }
       fields.push(newField)
       fieldIdMap[ci] = newField.id
     }
