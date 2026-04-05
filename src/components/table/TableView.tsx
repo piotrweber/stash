@@ -1,5 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   DndContext,
   DragOverlay,
@@ -39,6 +42,16 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
     return next
   })
   const clearSelection = () => setSelectedIds(new Set())
+
+  type DraftItem = { name: string; description: string; imagePath: string; fields: Item['fields'] }
+  const [draft, setDraft] = useState<DraftItem | null>(null)
+
+  const commitDraft = () => {
+    if (!draft) return
+    addItem({ name: draft.name.trim() || 'New item', description: draft.description, imagePath: draft.imagePath, fields: draft.fields, canvas: { x: 0, y: 0 } })
+    setDraft(null)
+  }
+  const cancelDraft = () => setDraft(null)
 
   const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 1.75]
 
@@ -124,7 +137,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
 
   if (!collection || !tableState) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
         No collection open.
       </div>
     )
@@ -142,12 +155,12 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
       <div className="flex-1 flex flex-col min-h-0">
 
         {/* ── Fixed header ── */}
-        <div className="shrink-0 bg-white border-b border-gray-100">
+        <div className="shrink-0 bg-background border-b border-border">
           <div className="max-w-4xl mx-auto px-8 pt-8 pb-3">
             {/* Back link */}
             <button
               onClick={onGoToProjects}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors mb-3"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -186,13 +199,16 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
 
               {/* Group 1: Data */}
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => addItem({ name: 'New item', description: '', imagePath: '', fields: {}, canvas: { x: 0, y: 0 } })}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                <Button
+                  size="sm"
+                  onClick={() => { if (!draft) setDraft({ name: '', description: '', imagePath: '', fields: {} }) }}
+                  disabled={!!draft}
                 >
                   + New
-                </button>
-                <button
+                </Button>
+                <Button
+                  size="sm"
+                  variant={isDirty ? 'outline' : 'ghost'}
                   onClick={() => {
                     const json = saveProject()
                     if (!json || !collection) return
@@ -204,17 +220,13 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                     a.click()
                     URL.revokeObjectURL(url)
                   }}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                    isDirty
-                      ? 'border-amber-300 text-amber-600 hover:bg-amber-50'
-                      : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600'
-                  }`}
+                  className={isDirty ? 'border-amber-300 text-amber-600 hover:bg-amber-50' : 'text-muted-foreground'}
                 >
                   {isDirty ? 'Save' : 'Saved'}
-                </button>
+                </Button>
               </div>
 
-              <div className="w-px h-4 bg-gray-200 mx-1" />
+              <div className="w-px h-4 bg-border mx-1" />
 
               {/* Group 2: View */}
               <div className="flex items-center gap-1">
@@ -225,11 +237,11 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                     <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
                     {grouped && (
                       <>
-                        <div className="w-px h-4 bg-gray-200 mx-0.5" />
+                        <div className="w-px h-4 bg-border mx-0.5" />
                         <button
                           onClick={() => setAllCollapsed((v) => v === true ? null : true)}
                           title="Collapse all"
-                          className={`p-1 rounded transition-colors ${allCollapsed === true ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                          className={`p-1 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                         >
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                             <path d="M3 6h10M3 10h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
@@ -239,7 +251,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                         <button
                           onClick={() => setAllCollapsed((v) => v === false ? null : false)}
                           title="Expand all"
-                          className={`p-1 rounded transition-colors ${allCollapsed === false ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}
+                          className={`p-1 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                         >
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                             <path d="M3 5h10M3 9h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
@@ -252,7 +264,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                 )}
               </div>
 
-              <div className="w-px h-4 bg-gray-200 mx-1" />
+              <div className="w-px h-4 bg-border mx-1" />
 
               {/* Group 3: Filter/Sort/Group */}
               <div className="ml-auto">
@@ -279,9 +291,31 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-8">
 
+            {/* ── Draft new item row (sticky) ── */}
+            {draft && (
+              <div className="sticky top-0 z-10 bg-background pt-4 pb-2">
+                {viewMode === 'focus' ? (
+                  <DraftFocusItemCard
+                    draft={draft}
+                    onChange={(patch) => setDraft((d) => d ? { ...d, ...patch } : null)}
+                    onAdd={commitDraft}
+                    onCancel={cancelDraft}
+                  />
+                ) : (
+                  <DraftItemCard
+                    draft={draft}
+                    fields={fields}
+                    onChange={(patch) => setDraft((d) => d ? { ...d, ...patch } : null)}
+                    onAdd={commitDraft}
+                    onCancel={cancelDraft}
+                  />
+                )}
+              </div>
+            )}
+
             {/* ── Content ── */}
             {viewMode === 'focus' ? (
-              <div className="py-6 flex flex-col">
+              <div className={`flex flex-col ${draft ? 'pb-8' : 'py-6'}`}>
                 {grouped ? (
                   grouped.map(({ key, items }) => (
                     <div key={key}>
@@ -306,7 +340,7 @@ export function TableView({ onGoToProjects, onShowSchema }: TableViewProps) {
                 )}
               </div>
             ) : (
-              <div className="pt-4 pb-8 flex flex-col gap-6" style={{ zoom }}>
+              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
                 {grouped ? (
                   <>
                     {grouped.map(({ key, items }) => (
@@ -450,8 +484,8 @@ function GroupSection({
       className={`rounded-xl transition-all duration-150 ${
         isDragging
           ? isOver
-            ? 'ring-2 ring-indigo-500 bg-indigo-50/60 shadow-lg'
-            : 'ring-1 ring-dashed ring-gray-300'
+            ? 'ring-2 ring-primary bg-accent/60 shadow-lg'
+            : 'ring-1 ring-dashed ring-border'
           : ''
       }`}
     >
@@ -459,7 +493,7 @@ function GroupSection({
       <div className="flex items-center gap-2.5 px-2 pb-2">
         <button
           onClick={() => setCollapsed((v) => !v)}
-          className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
         >
           <svg
             width="14" height="14" viewBox="0 0 14 14" fill="none"
@@ -479,10 +513,10 @@ function GroupSection({
             {groupKey}
           </button>
         ) : (
-          <span className="text-sm font-semibold text-gray-500">{groupKey}</span>
+          <span className="text-sm font-semibold text-muted-foreground">{groupKey}</span>
         )}
 
-        <span className="text-xs font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 min-w-[24px] text-center">
+        <span className="text-xs font-semibold text-muted-foreground bg-muted rounded-full px-2 py-0.5 min-w-[24px] text-center">
           {items.length}
         </span>
       </div>
@@ -492,7 +526,7 @@ function GroupSection({
         <div className="flex flex-col gap-2">
           {items.length === 0 ? (
             <div className={`h-14 rounded-lg border-2 border-dashed flex items-center justify-center text-xs transition-colors ${
-              isOver ? 'border-indigo-400 text-indigo-400' : 'border-gray-200 text-gray-300'
+              isOver ? 'border-primary text-primary' : 'border-border text-muted-foreground/50'
             }`}>
               Drop here
             </div>
@@ -567,7 +601,7 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
     <div
       ref={popRef}
       style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
-      className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 flex flex-col gap-3"
+      className="bg-popover border border-border rounded-xl shadow-lg p-3 flex flex-col gap-3"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Name */}
@@ -579,12 +613,12 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
           if (e.key === 'Enter') { e.preventDefault(); commit() }
           if (e.key === 'Escape') { onClose() }
         }}
-        className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-indigo-400"
+        className="w-full border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary/50 bg-background text-foreground"
       />
 
       {/* Color */}
       <div>
-        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-2">Color</p>
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Color</p>
         <div className="flex flex-wrap gap-1.5">
           {COLOR_KEYS.map((key) => {
             const c = OPTION_COLORS[key]
@@ -607,7 +641,7 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
       {/* Delete */}
       <button
         onClick={onDelete}
-        className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors text-left"
+        className="flex items-center gap-1.5 text-xs text-destructive/70 hover:text-destructive transition-colors text-left"
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
           <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -676,27 +710,25 @@ function ItemCard({
   return (
     <div
       ref={setNodeRef}
-      className={`bg-white rounded-xl border shadow-sm transition-all ${
+      className={`bg-card rounded-xl border shadow-sm transition-all ${
         isDragging ? 'opacity-0' : 'hover:shadow-md'
-      } ${selected ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200 hover:border-gray-300'}`}
+      } ${selected ? 'border-primary/40 bg-accent/20' : 'border-border hover:border-border/80'}`}
     >
       <div className="flex items-start">
         {/* Checkbox */}
         <div className="flex items-center justify-center self-stretch pl-2.5 pr-1 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleSelect?.() }}
-            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-              selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 hover:border-indigo-400'
-            }`}
-          >
-            {selected && <span className="text-white text-[9px] leading-none">✓</span>}
-          </button>
+          <Checkbox
+            checked={!!selected}
+            onCheckedChange={() => onToggleSelect?.()}
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0"
+          />
         </div>
 
         {/* Drag handle */}
         <div
           {...(draggable ? { ...attributes, ...listeners } : {})}
-          className={`flex items-center justify-center self-stretch px-2 shrink-0 ${draggable ? 'cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600' : 'text-transparent'}`}
+          className={`flex items-center justify-center self-stretch px-2 shrink-0 ${draggable ? 'cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground' : 'text-transparent'}`}
         >
           <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
             <circle cx="3.5" cy="3.5" r="1.2" fill="currentColor"/>
@@ -714,7 +746,7 @@ function ItemCard({
         </div>
 
         {/* Name + description */}
-        <div className="flex flex-col py-3 px-3 w-80 shrink-0 border-r border-gray-100">
+        <div className="flex flex-col py-3 px-3 w-80 shrink-0 border-r border-border/60">
           <InlineInput
             value={item.name}
             onSave={(v) => onUpdate({ name: v })}
@@ -729,10 +761,10 @@ function ItemCard({
 
         {/* Fields — one per column, table-style */}
         {fields.length > 0 && (
-          <div className="flex items-start divide-x divide-gray-100 flex-1 min-w-0 overflow-visible">
+          <div className="flex items-start divide-x divide-border/60 flex-1 min-w-0 overflow-visible">
             {fields.map((field) => (
               <div key={field.id} className="flex flex-col px-3 py-3 min-w-[120px]">
-                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{field.name}</span>
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">{field.name}</span>
                 <FieldChip
                   field={field}
                   value={item.fields[field.id] ?? null}
@@ -798,7 +830,7 @@ function FieldChip({ field, value, onChange }: {
         <button ref={btnRef} onClick={openMenu}>
           {label
             ? <OptionTag label={label} colorKey={colorKey} />
-            : <span className="text-[11px] text-gray-300 border border-dashed border-gray-200 rounded-full px-2 py-0.5 hover:border-gray-400 transition-colors">—</span>
+            : <span className="text-[11px] text-muted-foreground/50 border border-dashed border-border rounded-full px-2 py-0.5 hover:border-border/80 transition-colors">—</span>
           }
         </button>
         {open && menuPos && createPortal(
@@ -823,7 +855,7 @@ function FieldChip({ field, value, onChange }: {
         <button ref={btnRef} onClick={openMenu} className="flex flex-wrap gap-1 items-center">
           {selected.length > 0
             ? selected.map((s) => <OptionTag key={s} label={s} colorKey={field.optionColors?.[s]} />)
-            : <span className="text-[11px] text-gray-300 border border-dashed border-gray-200 rounded-full px-2 py-0.5 hover:border-gray-400 transition-colors">—</span>
+            : <span className="text-[11px] text-muted-foreground/50 border border-dashed border-border rounded-full px-2 py-0.5 hover:border-border/80 transition-colors">—</span>
           }
         </button>
         {open && menuPos && createPortal(
@@ -841,7 +873,7 @@ function FieldChip({ field, value, onChange }: {
   }
 
   if (field.type === 'text') {
-    return <InlineInput value={(value as string) ?? ''} onSave={onChange} placeholder="—" className="text-xs text-gray-700" />
+    return <InlineInput value={(value as string) ?? ''} onSave={onChange} placeholder="—" className="text-xs text-foreground" />
   }
 
   if (field.type === 'number') {
@@ -859,20 +891,20 @@ function SelectMenu({ field, selected, onSelect, onClose, pos }: {
   return (
     <div
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 160 }}
-      className="bg-white border border-gray-200 rounded-xl shadow-xl py-1"
+      className="bg-popover border border-border rounded-xl shadow-lg py-1"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <button onClick={() => onSelect(null)} className="block w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">
+      <button onClick={() => onSelect(null)} className="block w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50">
         — none
       </button>
       {field.options.map((opt) => (
         <button
           key={opt}
           onClick={() => onSelect(opt)}
-          className={`flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-gray-50 ${opt === selected ? 'font-medium' : ''}`}
+          className={`flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-muted/50 ${opt === selected ? 'font-medium' : ''}`}
         >
           <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
-          {opt === selected && <span className="ml-auto text-indigo-500 text-xs">✓</span>}
+          {opt === selected && <span className="ml-auto text-primary text-xs">✓</span>}
         </button>
       ))}
     </div>
@@ -887,7 +919,7 @@ function MultiSelectMenu({ field, selected, onToggle, onClose, pos }: {
   return (
     <div
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 160 }}
-      className="bg-white border border-gray-200 rounded-xl shadow-xl py-1"
+      className="bg-popover border border-border rounded-xl shadow-lg py-1"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {field.options.map((opt) => {
@@ -896,10 +928,10 @@ function MultiSelectMenu({ field, selected, onToggle, onClose, pos }: {
           <button
             key={opt}
             onClick={() => onToggle(opt)}
-            className="flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-gray-50"
+            className="flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-muted/50"
           >
-            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${active ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
-              {active && <span className="text-white text-[9px] leading-none">✓</span>}
+            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${active ? 'bg-primary border-primary' : 'border-border'}`}>
+              {active && <span className="text-primary-foreground text-[9px] leading-none">✓</span>}
             </span>
             <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
           </button>
@@ -931,7 +963,7 @@ function InlineInput({ value, onSave, placeholder = '', className = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
       placeholder={placeholder}
-      className={`block w-full bg-transparent border border-transparent rounded px-1 py-0.5 focus:bg-white focus:border-indigo-400 focus:outline-none placeholder-gray-300 transition-colors ${className}`}
+      className={`block w-full bg-transparent border border-transparent rounded px-1 py-0.5 focus:bg-background focus:border-primary/50 focus:outline-none placeholder:text-muted-foreground/40 transition-colors ${className}`}
     />
   )
 }
@@ -971,8 +1003,8 @@ function InlineTextarea({ value, onSave, placeholder = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLTextAreaElement).blur() }
       }}
       placeholder={placeholder}
-      className={`block w-full border rounded px-1 py-0.5 text-sm text-gray-700 font-normal focus:outline-none placeholder-gray-300 resize-none leading-snug transition-colors ${
-        focused ? 'bg-white border-indigo-400' : 'bg-transparent border-transparent'
+      className={`block w-full border rounded px-1 py-0.5 text-sm text-foreground font-normal focus:outline-none placeholder:text-muted-foreground/40 resize-none leading-snug transition-colors ${
+        focused ? 'bg-background border-primary/50' : 'bg-transparent border-transparent'
       }`}
     />
   )
@@ -996,7 +1028,7 @@ function InlineNumber({ value, onSave }: { value: number | null; onSave: (v: num
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
         if (e.key === 'Escape') { setDraft(String(value ?? '')); (e.target as HTMLInputElement).blur() }
       }}
-      className="w-16 bg-transparent border border-transparent rounded px-1 py-0.5 text-xs text-gray-700 focus:bg-white focus:border-indigo-400 focus:outline-none transition-colors"
+      className="w-16 bg-transparent border border-transparent rounded px-1 py-0.5 text-xs text-foreground focus:bg-background focus:border-primary/50 focus:outline-none transition-colors"
     />
   )
 }
@@ -1025,14 +1057,14 @@ function ImageCell({ item, onUpdate, size = 'md' }: { item: Item; onUpdate: (pat
       className={`${dim} shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-all rounded-lg ${
         item.imagePath
           ? 'hover:opacity-80'
-          : 'bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-gray-300 hover:border-gray-400'
+          : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border hover:border-border/80'
       }`}
       title={item.imagePath ? 'Click to replace image' : 'Click to upload image'}
     >
       {item.imagePath ? (
         <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
       ) : (
-        <div className="flex flex-col items-center gap-1 text-gray-400 select-none">
+        <div className="flex flex-col items-center gap-1 text-muted-foreground select-none">
           <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
             <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -1059,7 +1091,7 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
       <button
         onClick={() => canDec && onChange(steps[idx - 1])}
         disabled={!canDec}
-        className="p-1 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-default transition-colors"
+        className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
         title="Zoom out"
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -1070,7 +1102,7 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
       {zoom !== 1 && (
         <button
           onClick={() => onChange(1)}
-          className="text-[10px] font-medium text-gray-400 hover:text-gray-700 px-1 transition-colors"
+          className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1 transition-colors"
           title="Reset zoom"
         >
           {label}
@@ -1079,7 +1111,7 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
       <button
         onClick={() => canInc && onChange(steps[idx + 1])}
         disabled={!canInc}
-        className="p-1 rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:cursor-default transition-colors"
+        className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
         title="Zoom in"
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -1098,12 +1130,12 @@ function ViewModeToggle({ mode, onChange }: {
   onChange: (m: 'catalogue' | 'focus') => void
 }) {
   return (
-    <div className="flex items-center rounded-md border border-gray-200 overflow-hidden">
+    <div className="flex items-center rounded-md border border-border overflow-hidden">
       <button
         onClick={() => onChange('catalogue')}
         title="Catalogue mode"
         className={`flex items-center justify-center w-7 h-6 transition-colors ${
-          mode === 'catalogue' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+          mode === 'catalogue' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
         }`}
       >
         {/* Grid/table icon */}
@@ -1116,12 +1148,12 @@ function ViewModeToggle({ mode, onChange }: {
           <rect x="9" y="13" width="6" height="2" rx="1" stroke="currentColor" strokeWidth="1.4"/>
         </svg>
       </button>
-      <div className="w-px h-4 bg-gray-200" />
+      <div className="w-px h-4 bg-border" />
       <button
         onClick={() => onChange('focus')}
         title="Focus mode"
         className={`flex items-center justify-center w-7 h-6 transition-colors ${
-          mode === 'focus' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+          mode === 'focus' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
         }`}
       >
         {/* Text/document icon */}
@@ -1149,8 +1181,8 @@ function FocusModeBar({ onExit, toggle }: { onExit: () => void; toggle: React.Re
 function FocusGroupHeader({ label }: { label: string; field?: Field }) {
   return (
     <div className="flex items-center gap-3 mt-8 mb-2 first:mt-0">
-      <span className="font-serif text-sm font-semibold text-gray-400">{label}</span>
-      <div className="flex-1 h-px bg-gray-100" />
+      <span className="font-serif text-sm font-semibold text-muted-foreground">{label}</span>
+      <div className="flex-1 h-px bg-border/60" />
     </div>
   )
 }
@@ -1159,7 +1191,7 @@ function FocusGroupHeader({ label }: { label: string; field?: Field }) {
 
 function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Partial<Item>) => void }) {
   return (
-    <div className="flex items-start gap-5 py-6 border-b border-gray-100 last:border-0">
+    <div className="flex items-start gap-5 py-6 border-b border-border/60 last:border-0">
       {/* Image — small, rounded */}
       <div
         onClick={() => {
@@ -1178,14 +1210,14 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
         className={`w-24 h-24 shrink-0 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
           item.imagePath
             ? 'hover:opacity-80'
-            : 'bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-gray-300 hover:border-gray-400'
+            : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border hover:border-border/80'
         }`}
         title={item.imagePath ? 'Click to replace' : 'Click to upload'}
       >
         {item.imagePath ? (
           <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
         ) : (
-          <div className="flex flex-col items-center gap-1.5 text-gray-400 select-none">
+          <div className="flex flex-col items-center gap-1.5 text-muted-foreground select-none">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -1231,7 +1263,7 @@ function FocusInlineInput({ value, onSave, placeholder = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
       placeholder={placeholder}
-      className="block w-full bg-transparent border-none outline-none font-serif font-semibold text-lg text-gray-900 placeholder-gray-300 leading-snug"
+      className="block w-full bg-transparent border-none outline-none font-serif font-semibold text-lg text-foreground placeholder:text-muted-foreground/40 leading-snug"
     />
   )
 }
@@ -1265,7 +1297,7 @@ function FocusTextarea({ value, onSave, placeholder = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLTextAreaElement).blur() }
       }}
       placeholder={placeholder}
-      className="block w-full bg-transparent border-none outline-none font-serif text-base text-gray-600 leading-relaxed resize-none placeholder-gray-300"
+      className="block w-full bg-transparent border-none outline-none font-serif text-base text-foreground/70 leading-relaxed resize-none placeholder:text-muted-foreground/40"
     />
   )
 }
@@ -1285,7 +1317,7 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
-      className="block w-full bg-transparent border-none outline-none text-3xl font-bold text-gray-900 placeholder-gray-300 leading-tight"
+      className="block w-full bg-transparent border-none outline-none text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 leading-tight"
       placeholder="Untitled"
     />
   )
@@ -1326,6 +1358,132 @@ function UploadImagesButton() {
   )
 }
 
+// ─── Draft item cards ─────────────────────────────────────────────────────────
+
+type DraftItemType = { name: string; description: string; imagePath: string; fields: Item['fields'] }
+
+function DraftItemCard({ draft, fields, onChange, onAdd, onCancel }: {
+  draft: DraftItemType
+  fields: Field[]
+  onChange: (patch: Partial<DraftItemType>) => void
+  onAdd: () => void
+  onCancel: () => void
+}) {
+  const imageItem = { id: '__draft__', ...draft, canvas: { x: 0, y: 0 } } as Item
+
+  return (
+    <div className="bg-card rounded-xl border border-primary/40 shadow-sm ring-1 ring-primary/10">
+      <div className="flex items-start">
+        {/* Spacer aligns with checkbox + drag handle in ItemCard */}
+        <div className="w-[52px] shrink-0" />
+
+        {/* Image */}
+        <div className="pt-3 pb-3 pl-1 pr-2 shrink-0">
+          <ImageCell
+            item={imageItem}
+            onUpdate={(p) => { if (p.imagePath !== undefined) onChange({ imagePath: p.imagePath as string }) }}
+            size="sm"
+          />
+        </div>
+
+        {/* Name + description */}
+        <div className="flex flex-col py-3 px-3 w-80 shrink-0 border-r border-border/60">
+          <InlineInput
+            value={draft.name}
+            onSave={(v) => onChange({ name: v })}
+            placeholder="Item name"
+            className="text-sm font-medium text-foreground"
+          />
+          <InlineTextarea
+            value={draft.description}
+            onSave={(v) => onChange({ description: v })}
+            placeholder="Description"
+          />
+        </div>
+
+        {/* Fields */}
+        {fields.length > 0 && (
+          <div className="flex items-start divide-x divide-border/60 flex-1 min-w-0 overflow-visible">
+            {fields.map((field) => (
+              <div key={field.id} className="flex flex-col px-3 py-3 min-w-[120px]">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">{field.name}</span>
+                <FieldChip
+                  field={field}
+                  value={draft.fields[field.id] ?? null}
+                  onChange={(v) => onChange({ fields: { ...draft.fields, [field.id]: v } })}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add / Cancel */}
+        <div className="flex items-center gap-1.5 px-3 self-stretch border-l border-border/60 shrink-0">
+          <Button size="sm" onClick={onAdd}>Add</Button>
+          <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DraftFocusItemCard({ draft, onChange, onAdd, onCancel }: {
+  draft: DraftItemType
+  onChange: (patch: Partial<DraftItemType>) => void
+  onAdd: () => void
+  onCancel: () => void
+}) {
+  const handleImageUpload = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => onChange({ imagePath: reader.result as string })
+      reader.readAsDataURL(file)
+    }
+    input.click()
+  }
+
+  return (
+    <div className="border border-primary/40 rounded-xl bg-accent/20 ring-1 ring-primary/10 px-5 pt-5 pb-4">
+      <div className="flex items-start gap-5">
+        <div
+          onClick={handleImageUpload}
+          className={`w-24 h-24 shrink-0 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
+            draft.imagePath
+              ? 'hover:opacity-80'
+              : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border hover:border-border/80'
+          }`}
+          title={draft.imagePath ? 'Click to replace' : 'Click to upload'}
+        >
+          {draft.imagePath ? (
+            <img src={draft.imagePath} alt={draft.name} className="w-full h-full object-contain" />
+          ) : (
+            <div className="flex flex-col items-center gap-1.5 text-muted-foreground select-none">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span className="text-[10px] font-medium tracking-wide uppercase">Image</span>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <FocusInlineInput value={draft.name} onSave={(v) => onChange({ name: v })} placeholder="Title…" />
+          <FocusTextarea value={draft.description} onSave={(v) => onChange({ description: v })} placeholder="Write something…" />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end mt-3">
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" onClick={onAdd}>Add</Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Bulk action bar ──────────────────────────────────────────────────────────
 
 function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetField }: {
@@ -1363,20 +1521,20 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
 
   return (
     <>
-      <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2">
+      <div className="flex items-center gap-2 bg-accent border border-primary/20 rounded-xl px-4 py-2">
         {/* Counter + deselect */}
-        <button onClick={onClear} className="flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-900 transition-colors shrink-0">
-          <span className="w-5 h-5 bg-indigo-600 text-white rounded flex items-center justify-center text-[11px] font-bold">{count}</span>
+        <button onClick={onClear} className="flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary/80 transition-colors shrink-0">
+          <span className="w-5 h-5 bg-primary text-primary-foreground rounded flex items-center justify-center text-[11px] font-bold">{count}</span>
           selected
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
         </button>
 
-        <div className="w-px h-4 bg-indigo-200 mx-1" />
+        <div className="w-px h-4 bg-primary/20 mx-1" />
 
         {/* Field dropdowns */}
         {selectFields.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-xs text-indigo-500 font-medium">Set:</span>
+            <span className="text-xs text-primary/70 font-medium">Set:</span>
             {selectFields.map((f) => (
               <button
                 key={f.id}
@@ -1384,8 +1542,8 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
                 onClick={() => openFieldMenu(f.id)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
                   openFieldId === f.id
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background text-primary border-primary/30 hover:bg-accent'
                 }`}
               >
                 {f.name}
@@ -1400,7 +1558,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
         {/* Delete */}
         <button
           onClick={() => setConfirmDelete(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded-md border border-transparent hover:border-destructive/20 transition-colors"
           title="Delete selected"
         >
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -1416,15 +1574,15 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
         return createPortal(
           <div
             style={{ position: 'fixed', top: fieldMenuPos.top, left: fieldMenuPos.left, zIndex: 9999, minWidth: 160 }}
-            className="bg-white border border-gray-200 rounded-xl shadow-xl py-1"
+            className="bg-popover border border-border rounded-xl shadow-lg py-1"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="px-3 py-1.5 border-b border-gray-100">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{field.name}</span>
+            <div className="px-3 py-1.5 border-b border-border/60">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{field.name}</span>
             </div>
             <button
               onClick={() => { onSetField(field.id, null); setOpenFieldId(null) }}
-              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50"
+              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50"
             >
               — none
             </button>
@@ -1434,7 +1592,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
                 <button
                   key={opt}
                   onClick={() => { onSetField(field.id, opt); setOpenFieldId(null) }}
-                  className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-gray-50"
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-muted/50"
                 >
                   <span style={{ ...style, border: `1px solid ${style.borderColor}` }} className="text-[11px] px-2 py-0.5 rounded-full font-medium">
                     {opt}
@@ -1447,32 +1605,23 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
         )
       })()}
 
-      {/* Delete confirm modal */}
-      {confirmDelete && createPortal(
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]" onClick={() => setConfirmDelete(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-[360px] p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <h2 className="text-base font-bold text-gray-900">Delete {count} {count === 1 ? 'item' : 'items'}?</h2>
-              <p className="text-sm text-gray-500 mt-1">This action cannot be undone.</p>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setConfirmDelete(false); onDelete([...selectedIds]) }}
-                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+      {/* Delete confirm dialog */}
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="w-[360px]">
+          <DialogHeader>
+            <DialogTitle>Delete {count} {count === 1 ? 'item' : 'items'}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => { setConfirmDelete(false); onDelete([...selectedIds]) }}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

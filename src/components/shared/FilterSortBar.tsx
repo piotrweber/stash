@@ -80,7 +80,7 @@ function Dropdown({ pos, onClose, children, width = 260 }: {
     <div
       ref={ref}
       style={{ position: 'fixed', top, left, width, zIndex: 9999 }}
-      className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+      className="bg-popover border border-border rounded-xl shadow-lg overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {children}
@@ -117,13 +117,13 @@ function FilterDropdown({ filters, filterFields, onChange, onClose, pos }: {
             key={f.id}
             onClick={() => toggle(f)}
             className={`w-full text-left flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-              activeIds.has(f.id) ? 'text-indigo-600 bg-indigo-50' : 'text-gray-700 hover:bg-gray-50'
+              activeIds.has(f.id) ? 'text-primary bg-accent' : 'text-foreground hover:bg-muted/50'
             }`}
           >
             <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-              activeIds.has(f.id) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
+              activeIds.has(f.id) ? 'bg-primary border-primary' : 'border-border'
             }`}>
-              {activeIds.has(f.id) && <span className="text-white text-[9px] leading-none">✓</span>}
+              {activeIds.has(f.id) && <span className="text-primary-foreground text-[9px] leading-none">✓</span>}
             </span>
             {f.name}
           </button>
@@ -145,21 +145,21 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
 }) {
   return (
     <Dropdown pos={pos} onClose={onClose} width={220}>
-      <div className="px-3 py-2 border-b border-gray-100">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sort</span>
+      <div className="px-3 py-2 border-b border-border">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sort</span>
       </div>
 
       {sortBy && (
-        <div className="px-3 py-2.5 border-b border-gray-50">
+        <div className="px-3 py-2.5 border-b border-border/50">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-gray-500 font-medium flex-1">{sortFields.find((f) => f.id === sortBy)?.name}</span>
-            <button onClick={() => onChange(null, 'asc')} className="text-gray-300 hover:text-red-400 transition-colors text-base leading-none">×</button>
+            <span className="text-xs text-muted-foreground font-medium flex-1">{sortFields.find((f) => f.id === sortBy)?.name}</span>
+            <button onClick={() => onChange(null, 'asc')} className="text-muted-foreground/50 hover:text-destructive transition-colors text-base leading-none">×</button>
           </div>
           <div className="flex gap-1">
             <button
               onClick={() => onChange(sortBy, 'asc')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                sortDir === 'asc' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                sortDir === 'asc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -170,7 +170,7 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
             <button
               onClick={() => onChange(sortBy, 'desc')}
               className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                sortDir === 'desc' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                sortDir === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -183,16 +183,16 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
       )}
 
       <div className="py-1">
-        {!sortBy && <p className="text-xs text-gray-400 px-3 py-2">Pick a field to sort by</p>}
+        {!sortBy && <p className="text-xs text-muted-foreground px-3 py-2">Pick a field to sort by</p>}
         {sortFields.map((f) => (
           <button
             key={f.id}
             onClick={() => { onChange(f.id, sortDir); }}
             className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-              sortBy === f.id ? 'text-indigo-600 font-medium bg-indigo-50' : 'text-gray-700 hover:bg-gray-50'
+              sortBy === f.id ? 'text-primary font-medium bg-accent' : 'text-foreground hover:bg-muted/50'
             }`}
           >
-            {sortBy === f.id && <span className="text-indigo-500 text-[10px]">✓</span>}
+            {sortBy === f.id && <span className="text-primary text-[10px]">✓</span>}
             {f.name}
           </button>
         ))}
@@ -212,17 +212,17 @@ function GroupDropdown({ groupBy, groupableFields, onChange, onClose, pos }: {
 }) {
   return (
     <Dropdown pos={pos} onClose={onClose} width={200}>
-      <div className="px-3 py-2 border-b border-gray-100">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Group by</span>
+      <div className="px-3 py-2 border-b border-border">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Group by</span>
       </div>
       <div className="py-1">
         <button
           onClick={() => { onChange(null); onClose() }}
           className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-            !groupBy ? 'text-indigo-600 font-medium bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'
+            !groupBy ? 'text-primary font-medium bg-accent' : 'text-muted-foreground hover:bg-muted/50'
           }`}
         >
-          {!groupBy && <span className="text-indigo-500 text-[10px]">✓</span>}
+          {!groupBy && <span className="text-primary text-[10px]">✓</span>}
           No grouping
         </button>
         {groupableFields.map((f) => (
@@ -230,10 +230,10 @@ function GroupDropdown({ groupBy, groupableFields, onChange, onClose, pos }: {
             key={f.id}
             onClick={() => { onChange(f.id); onClose() }}
             className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs transition-colors ${
-              groupBy === f.id ? 'text-indigo-600 font-medium bg-indigo-50' : 'text-gray-700 hover:bg-gray-50'
+              groupBy === f.id ? 'text-primary font-medium bg-accent' : 'text-foreground hover:bg-muted/50'
             }`}
           >
-            {groupBy === f.id && <span className="text-indigo-500 text-[10px]">✓</span>}
+            {groupBy === f.id && <span className="text-primary text-[10px]">✓</span>}
             {f.name}
           </button>
         ))}
@@ -274,8 +274,8 @@ export function FilterSortBar({
         onClick={() => { closeAll(); filterDrop.toggle() }}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
           filters.length > 0
-            ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            ? 'bg-accent text-primary hover:bg-accent'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -283,7 +283,7 @@ export function FilterSortBar({
         </svg>
         Filter
         {filters.length > 0 && (
-          <span className="bg-indigo-200 text-indigo-800 rounded-full px-1.5 text-[10px] font-semibold leading-4">
+          <span className="bg-primary/20 text-primary rounded-full px-1.5 text-[10px] font-semibold leading-4">
             {filters.length}
           </span>
         )}
@@ -295,8 +295,8 @@ export function FilterSortBar({
         onClick={() => { closeAll(); sortDrop.toggle() }}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
           sortBy
-            ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            ? 'bg-accent text-primary hover:bg-accent'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -304,7 +304,7 @@ export function FilterSortBar({
         </svg>
         Sort
         {sortName && (
-          <span className="text-indigo-600 font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
+          <span className="text-primary font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
         )}
       </button>
 
@@ -315,8 +315,8 @@ export function FilterSortBar({
           onClick={() => { closeAll(); groupDrop.toggle() }}
           className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
             groupBy
-              ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              ? 'bg-accent text-primary hover:bg-accent'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
         >
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -326,14 +326,14 @@ export function FilterSortBar({
             <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
           </svg>
           Group
-          {groupName && <span className="text-indigo-600 font-semibold">{groupName}</span>}
+          {groupName && <span className="text-primary font-semibold">{groupName}</span>}
         </button>
       )}
 
       {hasActive && (
         <button
           onClick={() => { onFiltersChange([]); onSortChange(null, 'asc'); onGroupByChange?.(null); closeAll() }}
-          className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           Clear
         </button>
@@ -376,7 +376,7 @@ export function FilterSortBar({
   if (bare) return <>{inner}</>
 
   return (
-    <div className="border-b border-gray-100 bg-white shrink-0 px-3 py-1.5">
+    <div className="border-b border-border bg-background shrink-0 px-3 py-1.5">
       {inner}
     </div>
   )
