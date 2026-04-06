@@ -42,7 +42,6 @@ Propose a better arragnement of the tool bar, consider adding it to the side of 
 # Projects page:
 ## S
 - Remove: "Projects Manage your collections"
-- 
 - Add tool name "Pliny" + the version: Alpha, then below what the tool does, smthg along the lines of: Design and organise your inventory, rooster and collections.
 - Remove "Recent" move the toggle view buttons to the left
 - Table actions should be always visible

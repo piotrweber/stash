@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useCollectionStore } from '../../store/collectionStore'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Plus, FileSpreadsheet, Images, FolderOpen, LayoutGrid, List, Copy, Trash2 } from 'lucide-react'
+import { Plus, FileSpreadsheet, Images, FolderOpen, LayoutGrid, List, Copy, Trash2, Pencil, Download, FileJson, FileText } from 'lucide-react'
+import type { Collection } from '../../types/collection'
 
 interface ProjectsViewProps {
   onOpen: (id: string) => void
@@ -12,16 +13,54 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function exportCsv(project: Collection) {
+  const fields = project.schema.fields
+  const headers = ['Name', 'Description', ...fields.map((f) => f.name)]
+  const rows = project.items.map((item) => [
+    item.name,
+    item.description,
+    ...fields.map((f) => {
+      const v = item.fields[f.id]
+      return Array.isArray(v) ? v.join('; ') : String(v ?? '')
+    }),
+  ])
+  const csv = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${project.meta.name}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function exportJson(project: Collection) {
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${project.meta.name}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function ProjectsView({ onOpen }: ProjectsViewProps) {
   const { projects, createBlankProject, createProjectFromCsv, createProjectFromImages, deleteProject, duplicateProject, loadSample } = useCollectionStore()
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+
+  // Auto-seed sample project if store is empty
+  useEffect(() => {
+    if (projects.length === 0) loadSample()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleNewBlank = () => {
     const name = prompt('Project name:', 'Untitled project')
     if (!name) return
     createBlankProject(name.trim() || 'Untitled project')
-    const id = useCollectionStore.getState().activeProjectId!
-    onOpen(id)
+    onOpen(useCollectionStore.getState().activeProjectId!)
   }
 
   const handleFromCsv = () => {
@@ -32,10 +71,8 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
       const file = input.files?.[0]
       if (!file) return
       const text = await file.text()
-      const name = file.name.replace(/\.csv$/i, '')
-      createProjectFromCsv(name, text)
-      const id = useCollectionStore.getState().activeProjectId!
-      onOpen(id)
+      createProjectFromCsv(file.name.replace(/\.csv$/i, ''), text)
+      onOpen(useCollectionStore.getState().activeProjectId!)
     }
     input.click()
   }
@@ -60,8 +97,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
       )
       const name = prompt('Project name:', images[0]?.name ?? 'Untitled project') ?? 'Untitled project'
       createProjectFromImages(name.trim() || 'Untitled project', images)
-      const id = useCollectionStore.getState().activeProjectId!
-      onOpen(id)
+      onOpen(useCollectionStore.getState().activeProjectId!)
     }
     input.click()
   }
@@ -75,8 +111,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
       if (!file) return
       const text = await file.text()
       useCollectionStore.getState().loadProjectFile(text)
-      const id = useCollectionStore.getState().activeProjectId!
-      onOpen(id)
+      onOpen(useCollectionStore.getState().activeProjectId!)
     }
     input.click()
   }
@@ -99,20 +134,12 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
       <div className="max-w-4xl mx-auto px-8 py-12">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h1 className="font-serif text-2xl font-semibold tracking-tight">Projects</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage your collections</p>
+        <div className="mb-10">
+          <div className="flex items-baseline gap-2.5 mb-1">
+            <h1 className="font-serif text-2xl font-semibold tracking-tight">Pliny</h1>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground border border-border px-1.5 py-0.5">Alpha</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { loadSample(); onOpen(useCollectionStore.getState().activeProjectId!) }}
-            >
-              Load sample
-            </Button>
-          </div>
+          <p className="text-sm text-muted-foreground">Design and organise your inventory, roster and collections.</p>
         </div>
 
         {/* Create cards */}
@@ -127,9 +154,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
         {projects.length > 0 && (
           <>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
-              <Separator className="flex-1" />
-              {/* View toggle */}
+              {/* View toggle — left side */}
               <div className="flex items-center rounded-md border border-border overflow-hidden">
                 <button
                   onClick={() => setViewMode('grid')}
@@ -151,52 +176,19 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                   <List size={12} />
                 </button>
               </div>
+              <div className="flex-1 h-px bg-border" />
             </div>
 
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-3 gap-4">
                 {sorted.map((project) => (
-                  <button
+                  <GridCard
                     key={project.meta.id}
-                    onClick={() => onOpen(project.meta.id)}
-                    className="group relative bg-card rounded-xl border border-border text-left hover:border-primary/40 hover: transition-all duration-150 overflow-hidden cursor-pointer"
-                  >
-                    {/* Delete */}
-                    <button
-                      onClick={(e) => handleDelete(e, project.meta.id, project.meta.name)}
-                      className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
-                    >
-                      ×
-                    </button>
-
-                    {/* Preview strip */}
-                    <div className="flex gap-1.5 p-4 pb-3 h-20 overflow-hidden">
-                      {project.items.slice(0, 5).map((item) =>
-                        item.imagePath ? (
-                          <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 overflow-hidden bg-muted">
-                            <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
-                          </div>
-                        ) : (
-                          <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 bg-muted flex items-center justify-center">
-                            <span className="text-sm font-semibold text-muted-foreground">{item.name.charAt(0).toUpperCase()}</span>
-                          </div>
-                        )
-                      )}
-                      {project.items.length === 0 && (
-                        <div className="w-full h-12 rounded-lg bg-muted/50 flex items-center justify-center">
-                          <span className="text-xs text-muted-foreground">Empty</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="px-4 pb-4">
-                      <p className="text-sm font-semibold text-foreground truncate pr-6">{project.meta.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {project.items.length} {project.items.length === 1 ? 'item' : 'items'}
-                        {project.schema.fields.length > 0 && ` · ${project.schema.fields.length} fields`}
-                      </p>
-                    </div>
-                  </button>
+                    project={project}
+                    onOpen={onOpen}
+                    onDelete={handleDelete}
+                    onDuplicate={handleDuplicate}
+                  />
                 ))}
               </div>
             ) : (
@@ -213,48 +205,13 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {sorted.map((project) => (
-                      <tr
+                      <TableRow
                         key={project.meta.id}
-                        className="group bg-card hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => onOpen(project.meta.id)}
-                            className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer text-left"
-                          >
-                            {project.meta.name}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {project.items.length}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {project.schema.fields.length}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">
-                          {formatDate(project.meta.updatedAt)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => handleDuplicate(e, project.meta.id)}
-                              title="Duplicate"
-                              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
-                            >
-                              <Copy size={12} />
-                              Duplicate
-                            </button>
-                            <button
-                              onClick={(e) => handleDelete(e, project.meta.id, project.meta.name)}
-                              title="Delete"
-                              className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={12} />
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        project={project}
+                        onOpen={onOpen}
+                        onDelete={handleDelete}
+                        onDuplicate={handleDuplicate}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -262,17 +219,194 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
             )}
           </>
         )}
-
-        {projects.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-muted-foreground text-sm">No projects yet.</p>
-            <p className="text-muted-foreground/60 text-xs mt-1">Create one above to get started.</p>
-          </div>
-        )}
       </div>
     </div>
   )
 }
+
+// ─── Grid card ────────────────────────────────────────────────────────────────
+
+function GridCard({ project, onOpen, onDelete, onDuplicate }: {
+  project: Collection
+  onOpen: (id: string) => void
+  onDelete: (e: React.MouseEvent, id: string, name: string) => void
+  onDuplicate: (e: React.MouseEvent, id: string) => void
+}) {
+  return (
+    <button
+      onClick={() => onOpen(project.meta.id)}
+      className="group relative bg-card rounded-xl border border-border text-left hover:border-primary/40 transition-all duration-150 overflow-hidden cursor-pointer"
+    >
+      <button
+        onClick={(e) => onDelete(e, project.meta.id, project.meta.name)}
+        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
+      >
+        ×
+      </button>
+      <div className="flex gap-1.5 p-4 pb-3 h-20 overflow-hidden">
+        {project.items.slice(0, 5).map((item) =>
+          item.imagePath ? (
+            <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 overflow-hidden bg-muted">
+              <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
+            </div>
+          ) : (
+            <div key={item.id} className="w-12 h-12 rounded-lg shrink-0 bg-muted flex items-center justify-center">
+              <span className="text-sm font-semibold text-muted-foreground">{item.name.charAt(0).toUpperCase()}</span>
+            </div>
+          )
+        )}
+        {project.items.length === 0 && (
+          <div className="w-full h-12 rounded-lg bg-muted/50 flex items-center justify-center">
+            <span className="text-xs text-muted-foreground">Empty</span>
+          </div>
+        )}
+      </div>
+      <div className="px-4 pb-4">
+        <p className="text-sm font-semibold text-foreground truncate pr-6">{project.meta.name}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {project.items.length} {project.items.length === 1 ? 'item' : 'items'}
+          {project.schema.fields.length > 0 && ` · ${project.schema.fields.length} fields`}
+        </p>
+      </div>
+    </button>
+  )
+}
+
+// ─── Table row ────────────────────────────────────────────────────────────────
+
+function TableRow({ project, onOpen, onDelete, onDuplicate }: {
+  project: Collection
+  onOpen: (id: string) => void
+  onDelete: (e: React.MouseEvent, id: string, name: string) => void
+  onDuplicate: (e: React.MouseEvent, id: string) => void
+}) {
+  const { renameProject, openProject } = useCollectionStore()
+  const [editing, setEditing] = useState(false)
+  const [nameDraft, setNameDraft] = useState(project.meta.name)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportPos, setExportPos] = useState<{ top: number; left: number } | null>(null)
+  const exportBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const close = () => setExportOpen(false)
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [exportOpen])
+
+  useEffect(() => { setNameDraft(project.meta.name) }, [project.meta.name])
+
+  const commitRename = () => {
+    const trimmed = nameDraft.trim()
+    if (trimmed && trimmed !== project.meta.name) {
+      openProject(project.meta.id)
+      renameProject(trimmed)
+    }
+    setEditing(false)
+  }
+
+  const openExport = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!exportBtnRef.current) return
+    const r = exportBtnRef.current.getBoundingClientRect()
+    setExportPos({ top: r.bottom + 4, left: r.right - 140 })
+    setExportOpen(true)
+  }
+
+  return (
+    <tr className="group bg-card hover:bg-muted/30 transition-colors">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          {editing ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') { setNameDraft(project.meta.name); setEditing(false) }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm font-medium text-foreground bg-transparent border-b border-primary outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => onOpen(project.meta.id)}
+              className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer text-left"
+            >
+              {project.meta.name}
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditing((v) => !v) }}
+            className="p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-all"
+          >
+            <Pencil size={11} />
+          </button>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{project.items.length}</td>
+      <td className="px-4 py-3 text-muted-foreground">{project.schema.fields.length}</td>
+      <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(project.meta.updatedAt)}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1 justify-end">
+          <button
+            ref={exportBtnRef}
+            onClick={openExport}
+            title="Export"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+          >
+            <Download size={12} />
+            Export
+          </button>
+          <button
+            onClick={(e) => onDuplicate(e, project.meta.id)}
+            title="Duplicate"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+          >
+            <Copy size={12} />
+            Duplicate
+          </button>
+          <button
+            onClick={(e) => onDelete(e, project.meta.id, project.meta.name)}
+            title="Delete"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
+          >
+            <Trash2 size={12} />
+            Delete
+          </button>
+        </div>
+
+        {exportOpen && exportPos && createPortal(
+          <div
+            style={{ position: 'fixed', top: exportPos.top, left: exportPos.left, width: 140, zIndex: 9999 }}
+            className="bg-popover border border-border py-1"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { exportCsv(project); setExportOpen(false) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <FileText size={12} />
+              Export as CSV
+            </button>
+            <button
+              onClick={() => { exportJson(project); setExportOpen(false) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <FileJson size={12} />
+              Export as JSON
+            </button>
+          </div>,
+          document.body,
+        )}
+      </td>
+    </tr>
+  )
+}
+
+// ─── Create card ──────────────────────────────────────────────────────────────
 
 function CreateCard({ icon, label, description, onClick }: {
   icon: React.ReactNode
@@ -283,7 +417,7 @@ function CreateCard({ icon, label, description, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-start gap-3 bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover: transition-all duration-150 group cursor-pointer"
+      className="flex flex-col items-start gap-3 bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 transition-all duration-150 group cursor-pointer"
     >
       <span className="text-muted-foreground group-hover:text-primary transition-colors">{icon}</span>
       <div>
@@ -293,4 +427,3 @@ function CreateCard({ icon, label, description, onClick }: {
     </button>
   )
 }
-
