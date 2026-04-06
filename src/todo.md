@@ -8,7 +8,7 @@ Header should collapse to the project name when scrolling
 Filter should help with understand what is missing and what is done
 Add image (set / not set) to filters
 
-
+Text versions / revisions
 
 Project page:
 - Add tool name "Stack" and a simple logo

@@ -686,7 +686,6 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
 // ─── Field header row ─────────────────────────────────────────────────────────
 
 const FIELD_TYPES: { type: Field['type']; label: string }[] = [
-  { type: 'text', label: 'Text' },
   { type: 'number', label: 'Number' },
   { type: 'select', label: 'Select' },
   { type: 'multi-select', label: 'Multi-select' },
@@ -728,7 +727,7 @@ function FieldCells({ fields, itemFields, onChange }: {
             <span className="px-3 pt-3 pb-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
               {field.name}
             </span>
-            <div className="px-3 pb-3" onClick={(e) => e.stopPropagation()}>
+            <div className="px-3 pb-3">
               <FieldChip
                 field={field}
                 value={itemFields[field.id] ?? null}
@@ -782,11 +781,18 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
   value: Item['fields'][string]
   onValueChange: (v: Item['fields'][string]) => void
 }) {
+  const { updateField, renameOption, deleteOption } = useCollectionStore()
   const [name, setName] = useState(field.name)
+  const [localOpts, setLocalOpts] = useState(field.options)
+  const [editingOpt, setEditingOpt] = useState<string | null>(null)
+  const [editOptPos, setEditOptPos] = useState<{ top: number; left: number } | null>(null)
   const popRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const optSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const [dragOptId, setDragOptId] = useState<string | null>(null)
 
-  useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
+  // Sync localOpts when field.options changes (e.g., after store update)
+  useEffect(() => { setLocalOpts(field.options) }, [field.options])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -804,9 +810,35 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
     onClose()
   }
 
-  const hasOptions = (field.type === 'select' || field.type === 'multi-select') && field.options.length > 0
+  const hasOptions = field.type === 'select' || field.type === 'multi-select'
+
+  const addOption = () => {
+    const newOpt = `Option ${localOpts.length + 1}`
+    const updated = [...localOpts, newOpt]
+    setLocalOpts(updated)
+    updateField(field.id, { options: updated })
+  }
   const selected: string[] = field.type === 'multi-select' ? (Array.isArray(value) ? value as string[] : []) : []
   const selectedSingle = field.type === 'select' ? (value as string | null) : null
+
+  const handleOptDragEnd = (e: DragEndEvent) => {
+    setDragOptId(null)
+    if (!e.over || e.active.id === e.over.id) return
+    const oldIdx = localOpts.indexOf(e.active.id as string)
+    const newIdx = localOpts.indexOf(e.over.id as string)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(localOpts, oldIdx, newIdx)
+    setLocalOpts(reordered)
+    updateField(field.id, { options: reordered })
+  }
+
+  const openOptEdit = (opt: string, rowEl: HTMLElement) => {
+    const rect = rowEl.getBoundingClientRect()
+    // Position sub-popover to the right of main popover
+    const mainLeft = Math.min(anchor.left, window.innerWidth - 230)
+    setEditOptPos({ top: rect.top, left: mainLeft + 228 })
+    setEditingOpt(opt)
+  }
 
   const top = Math.min(anchor.bottom + 6, window.innerHeight - 320)
   const left = Math.min(anchor.left, window.innerWidth - 230)
@@ -845,49 +877,230 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
       {hasOptions && (
         <>
           <div className="h-px bg-border mx-3 mb-1" />
-          <div className="py-1 max-h-52 overflow-y-auto">
-            {field.type === 'select' && (
-              <>
-                <button
-                  onClick={() => { onValueChange(null) }}
-                  className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
-                >
-                  — none
-                  {selectedSingle === null && <span className="ml-auto text-primary text-[10px]">✓</span>}
-                </button>
-                {field.options.map((opt) => (
+          <DndContext
+            sensors={optSensors}
+            onDragStart={(e) => setDragOptId(e.active.id as string)}
+            onDragEnd={handleOptDragEnd}
+          >
+            <SortableContext items={localOpts} strategy={rectSortingStrategy}>
+              <div className="py-1 max-h-52 overflow-y-auto">
+                {field.type === 'select' && (
                   <button
-                    key={opt}
-                    onClick={() => { onValueChange(opt === selectedSingle ? null : opt) }}
-                    className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-muted/50"
+                    onClick={() => { onValueChange(null) }}
+                    className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50"
                   >
-                    <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
-                    {opt === selectedSingle && <span className="ml-auto text-primary text-[10px]">✓</span>}
+                    — none
+                    {selectedSingle === null && <span className="ml-auto text-primary text-[10px]">✓</span>}
                   </button>
+                )}
+                {localOpts.map((opt) => (
+                  <SortableOptionRow
+                    key={opt}
+                    opt={opt}
+                    field={field}
+                    selectedSingle={selectedSingle}
+                    selected={selected}
+                    isDragging={dragOptId === opt}
+                    onValueChange={onValueChange}
+                    onOpenEdit={openOptEdit}
+                  />
                 ))}
-              </>
-            )}
-            {field.type === 'multi-select' && field.options.map((opt) => {
-              const active = selected.includes(opt)
-              return (
-                <button
-                  key={opt}
-                  onClick={() => onValueChange(active ? selected.filter((s) => s !== opt) : [...selected, opt])}
-                  className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-muted/50"
-                >
-                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${active ? 'bg-primary border-primary' : 'border-border'}`}>
-                    {active && <span className="text-primary-foreground text-[9px] leading-none">✓</span>}
-                  </span>
-                  <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
-                </button>
-              )
-            })}
-          </div>
+              </div>
+            </SortableContext>
+          </DndContext>
+          <button
+            onClick={addOption}
+            className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground/60 hover:text-primary hover:bg-muted/40 transition-colors"
+          >
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Add option
+          </button>
         </>
       )}
-      <div className="pb-2" />
+      <div className="pb-1" />
+
+      {/* Sub-popover for option edit */}
+      {editingOpt && editOptPos && createPortal(
+        <OptionEditSubPopover
+          opt={editingOpt}
+          field={field}
+          pos={editOptPos}
+          onClose={() => { setEditingOpt(null); setEditOptPos(null) }}
+          onRename={(oldName, newName) => {
+            renameOption(field.id, oldName, newName)
+            setEditingOpt(newName)
+            if (selectedSingle === oldName) onValueChange(newName)
+          }}
+          onDelete={(opt) => {
+            deleteOption(field.id, opt)
+            setEditingOpt(null)
+            setEditOptPos(null)
+            if (selectedSingle === opt) onValueChange(null)
+            if (selected.includes(opt)) onValueChange(selected.filter((s) => s !== opt))
+          }}
+          onColor={(opt, colorKey) => {
+            updateField(field.id, { optionColors: { ...(field.optionColors ?? {}), [opt]: colorKey } })
+          }}
+        />,
+        document.body,
+      )}
     </div>,
     document.body,
+  )
+}
+
+function SortableOptionRow({ opt, field, selectedSingle, selected, isDragging, onValueChange, onOpenEdit }: {
+  opt: string
+  field: Field
+  selectedSingle: string | null
+  selected: string[]
+  isDragging: boolean
+  onValueChange: (v: Item['fields'][string]) => void
+  onOpenEdit: (opt: string, el: HTMLElement) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt })
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+
+  const isActive = field.type === 'select' ? opt === selectedSingle : selected.includes(opt)
+
+  const toggle = () => {
+    if (field.type === 'select') {
+      onValueChange(opt === selectedSingle ? null : opt)
+    } else {
+      onValueChange(isActive ? selected.filter((s) => s !== opt) : [...selected, opt])
+    }
+  }
+
+  return (
+    <div
+      ref={(el) => { setNodeRef(el); rowRef.current = el }}
+      style={style}
+      className="group flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors"
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-grab active:cursor-grabbing p-0.5"
+        tabIndex={-1}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+          <circle cx="3" cy="2.5" r="1"/><circle cx="7" cy="2.5" r="1"/>
+          <circle cx="3" cy="5" r="1"/><circle cx="7" cy="5" r="1"/>
+          <circle cx="3" cy="7.5" r="1"/><circle cx="7" cy="7.5" r="1"/>
+        </svg>
+      </button>
+
+      {/* Value toggle */}
+      <button onClick={toggle} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+        {field.type === 'multi-select' && (
+          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${isActive ? 'bg-primary border-primary' : 'border-border'}`}>
+            {isActive && <span className="text-primary-foreground text-[9px] leading-none">✓</span>}
+          </span>
+        )}
+        <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
+        {field.type === 'select' && isActive && <span className="ml-auto text-primary text-[10px]">✓</span>}
+      </button>
+
+      {/* Edit arrow */}
+      <button
+        onClick={() => { if (rowRef.current) onOpenEdit(opt, rowRef.current) }}
+        className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-foreground transition-all p-0.5"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M3.5 2l4 3-4 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function OptionEditSubPopover({ opt, field, pos, onClose, onRename, onDelete, onColor }: {
+  opt: string
+  field: Field
+  pos: { top: number; left: number }
+  onClose: () => void
+  onRename: (oldName: string, newName: string) => void
+  onDelete: (opt: string) => void
+  onColor: (opt: string, colorKey: string) => void
+}) {
+  const [name, setName] = useState(opt)
+  const popRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  const commitRename = () => {
+    const trimmed = name.trim()
+    if (trimmed && trimmed !== opt) onRename(opt, trimmed)
+  }
+
+  const top = Math.min(pos.top, window.innerHeight - 200)
+  const left = Math.min(pos.left, window.innerWidth - 196)
+
+  return (
+    <div
+      ref={popRef}
+      style={{ position: 'fixed', top, left, zIndex: 10000, width: 188 }}
+      className="bg-popover border border-border rounded-xl shadow-lg overflow-hidden p-3 flex flex-col gap-2.5"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {/* Rename + add + delete */}
+      <div className="flex items-center gap-1.5">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitRename(); onClose() }
+            if (e.key === 'Escape') onClose()
+          }}
+          className="flex-1 min-w-0 border border-border rounded-md px-2 py-1 text-xs bg-background text-foreground focus:outline-none focus:border-primary/50"
+        />
+        <button
+          onClick={() => onDelete(opt)}
+          className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors p-1"
+          title="Delete option"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Color picker */}
+      <div>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Color</p>
+        <div className="flex flex-wrap gap-1">
+          {COLOR_KEYS.map((ck) => {
+            const style = optionStyle(ck)
+            const isActive = (field.optionColors?.[opt] ?? 'gray') === ck
+            return (
+              <button
+                key={ck}
+                onClick={() => onColor(opt, ck)}
+                title={ck}
+                style={{ backgroundColor: style.backgroundColor, borderColor: isActive ? style.color : style.borderColor }}
+                className={`w-5 h-5 rounded-md border-2 transition-all ${isActive ? 'scale-110' : 'hover:scale-105'}`}
+              />
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -897,7 +1110,7 @@ function AddFieldPopover({ anchor, onClose, onAdd }: {
   onAdd: (name: string, type: Field['type']) => void
 }) {
   const [name, setName] = useState('')
-  const [type, setType] = useState<Field['type']>('text')
+  const [type, setType] = useState<Field['type']>('select')
   const popRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -1049,7 +1262,7 @@ function OptionTag({ label, colorKey, size = 'sm' }: { label: string; colorKey?:
   return (
     <span
       style={{ ...style, border: `1px solid ${style.borderColor}` }}
-      className={`inline-block rounded-full font-medium ${size === 'xs' ? 'text-[10px] px-1.5 py-px' : 'text-[11px] px-2 py-0.5'}`}
+      className={`inline-block rounded font-medium ${size === 'xs' ? 'text-[10px] px-1.5 py-px' : 'text-[11px] px-2 py-0.5'}`}
     >
       {label}
     </span>
@@ -1061,145 +1274,38 @@ function FieldChip({ field, value, onChange }: {
   value: Item['fields'][string]
   onChange: (v: Item['fields'][string]) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
-
-  const openMenu = () => {
-    if (!btnRef.current) return
-    const rect = btnRef.current.getBoundingClientRect()
-    const left = Math.min(rect.left, window.innerWidth - 200)
-    setMenuPos({ top: rect.bottom + 4, left })
-    setOpen(true)
-  }
-
-  useEffect(() => {
-    if (!open) return
-    const close = (e: MouseEvent) => {
-      if (btnRef.current && !btnRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [open])
-
   if (field.type === 'select') {
     const label = (value as string) || null
     const colorKey = label ? field.optionColors?.[label] : undefined
-
-    return (
-      <div>
-        <button ref={btnRef} onClick={openMenu}>
-          {label
-            ? <OptionTag label={label} colorKey={colorKey} />
-            : <span className="text-[11px] text-muted-foreground/50 border border-dashed border-border rounded-full px-2 py-0.5 hover:border-border/80 transition-colors">—</span>
-          }
-        </button>
-        {open && menuPos && createPortal(
-          <SelectMenu
-            field={field}
-            selected={label}
-            onSelect={(opt) => { onChange(opt); setOpen(false) }}
-            pos={menuPos}
-          />,
-          document.body,
-        )}
-      </div>
-    )
+    return label
+      ? <OptionTag label={label} colorKey={colorKey} />
+      : <span className="text-[11px] text-muted-foreground/30">—</span>
   }
 
   if (field.type === 'multi-select') {
     const selected: string[] = Array.isArray(value) ? value : []
+    return selected.length > 0
+      ? <div className="flex flex-wrap gap-1">{selected.map((s) => <OptionTag key={s} label={s} colorKey={field.optionColors?.[s]} />)}</div>
+      : <span className="text-[11px] text-muted-foreground/30">—</span>
+  }
 
+  if (field.type === 'text') {
     return (
-      <div>
-        <button ref={btnRef} onClick={openMenu} className="flex flex-wrap gap-1 items-center">
-          {selected.length > 0
-            ? selected.map((s) => <OptionTag key={s} label={s} colorKey={field.optionColors?.[s]} />)
-            : <span className="text-[11px] text-muted-foreground/50 border border-dashed border-border rounded-full px-2 py-0.5 hover:border-border/80 transition-colors">—</span>
-          }
-        </button>
-        {open && menuPos && createPortal(
-          <MultiSelectMenu
-            field={field}
-            selected={selected}
-            onToggle={(opt) => onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt])}
-            pos={menuPos}
-          />,
-          document.body,
-        )}
+      <div onClick={(e) => e.stopPropagation()}>
+        <InlineInput value={(value as string) ?? ''} onSave={onChange} placeholder="—" className="text-xs text-foreground" />
       </div>
     )
   }
 
-  if (field.type === 'text') {
-    return <InlineInput value={(value as string) ?? ''} onSave={onChange} placeholder="—" className="text-xs text-foreground" />
-  }
-
   if (field.type === 'number') {
-    return <InlineNumber value={value as number | null} onSave={onChange} />
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <InlineNumber value={value as number | null} onSave={onChange} />
+      </div>
+    )
   }
 
   return null
-}
-
-function SelectMenu({ field, selected, onSelect, pos }: {
-  field: Field; selected: string | null
-  onSelect: (v: string | null) => void
-  pos: { top: number; left: number }
-}) {
-  return (
-    <div
-      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 160 }}
-      className="bg-popover border border-border rounded-xl shadow-lg py-1"
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <button onClick={() => onSelect(null)} className="block w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50">
-        — none
-      </button>
-      {field.options.map((opt) => (
-        <button
-          key={opt}
-          onClick={() => onSelect(opt)}
-          className={`flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-muted/50 ${opt === selected ? 'font-medium' : ''}`}
-        >
-          <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
-          {opt === selected && <span className="ml-auto text-primary text-xs">✓</span>}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function MultiSelectMenu({ field, selected, onToggle, pos }: {
-  field: Field; selected: string[]
-  onToggle: (v: string) => void
-  pos: { top: number; left: number }
-}) {
-  return (
-    <div
-      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, minWidth: 160 }}
-      className="bg-popover border border-border rounded-xl shadow-lg py-1"
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {field.options.map((opt) => {
-        const active = selected.includes(opt)
-        return (
-          <button
-            key={opt}
-            onClick={() => onToggle(opt)}
-            className="flex items-center gap-2 w-full text-left px-3 py-1.5 hover:bg-muted/50"
-          >
-            <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${active ? 'bg-primary border-primary' : 'border-border'}`}>
-              {active && <span className="text-primary-foreground text-[9px] leading-none">✓</span>}
-            </span>
-            <OptionTag label={opt} colorKey={field.optionColors?.[opt]} />
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 // ─── Editable primitives ──────────────────────────────────────────────────────

@@ -38,6 +38,9 @@ interface CollectionStore {
   addField: (field: Omit<Field, 'id'>) => void
   updateField: (id: string, patch: Partial<Field>) => void
   deleteField: (id: string) => void
+  reorderFields: (orderedIds: string[]) => void
+  renameOption: (fieldId: string, oldName: string, newName: string) => void
+  deleteOption: (fieldId: string, option: string) => void
 
   // Canvas actions (kept for data compat)
   addFrame: (frame: Omit<Frame, 'id'>) => void
@@ -128,7 +131,8 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-const idbStorage = createJSONStorage<CollectionStore>(() => ({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const idbStorage = createJSONStorage<any>(() => ({
   getItem: async (key: string) => {
     const db = await openDb()
     return new Promise((resolve, reject) => {
@@ -140,7 +144,7 @@ const idbStorage = createJSONStorage<CollectionStore>(() => ({
   },
   setItem: async (key: string, value: string) => {
     const db = await openDb()
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite')
       const req = tx.objectStore(IDB_STORE).put(value, key)
       req.onsuccess = () => resolve()
@@ -149,7 +153,7 @@ const idbStorage = createJSONStorage<CollectionStore>(() => ({
   },
   removeItem: async (key: string) => {
     const db = await openDb()
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite')
       const req = tx.objectStore(IDB_STORE).delete(key)
       req.onsuccess = () => resolve()
@@ -420,6 +424,68 @@ export const useCollectionStore = create<CollectionStore>()(
           fields: s.collection.schema.fields.filter((f) => f.id !== id),
           cardVisibleFields: s.collection.schema.cardVisibleFields.filter((fid) => fid !== id),
         },
+        items,
+      })
+      return sync(s, updated)
+    }),
+
+  reorderFields: (orderedIds) =>
+    set((s) => {
+      if (!s.collection) return s
+      const map = new Map(s.collection.schema.fields.map((f) => [f.id, f]))
+      const reordered = orderedIds.map((id) => map.get(id)).filter(Boolean) as Field[]
+      const missed = s.collection.schema.fields.filter((f) => !new Set(orderedIds).has(f.id))
+      const updated = touch({
+        ...s.collection,
+        schema: { ...s.collection.schema, fields: [...reordered, ...missed] },
+      })
+      return sync(s, updated)
+    }),
+
+  renameOption: (fieldId, oldName, newName) =>
+    set((s) => {
+      if (!s.collection) return s
+      const field = s.collection.schema.fields.find((f) => f.id === fieldId)
+      if (!field) return s
+      const options = field.options.map((o) => (o === oldName ? newName : o))
+      const optionColors = { ...(field.optionColors ?? {}) }
+      if (optionColors[oldName] !== undefined) {
+        optionColors[newName] = optionColors[oldName]
+        delete optionColors[oldName]
+      }
+      const items = s.collection.items.map((item) => {
+        const v = item.fields[fieldId]
+        if (field.type === 'select' && v === oldName) return { ...item, fields: { ...item.fields, [fieldId]: newName } }
+        if (field.type === 'multi-select' && Array.isArray(v))
+          return { ...item, fields: { ...item.fields, [fieldId]: (v as string[]).map((x) => (x === oldName ? newName : x)) } }
+        return item
+      })
+      const updated = touch({
+        ...s.collection,
+        schema: { ...s.collection.schema, fields: s.collection.schema.fields.map((f) => f.id === fieldId ? { ...f, options, optionColors } : f) },
+        items,
+      })
+      return sync(s, updated)
+    }),
+
+  deleteOption: (fieldId, option) =>
+    set((s) => {
+      if (!s.collection) return s
+      const field = s.collection.schema.fields.find((f) => f.id === fieldId)
+      if (!field) return s
+      const options = field.options.filter((o) => o !== option)
+      const optionColors = { ...(field.optionColors ?? {}) }
+      delete optionColors[option]
+      const items = s.collection.items.map((item) => {
+        const v = item.fields[fieldId]
+        if (field.type === 'select' && v === option) return { ...item, fields: { ...item.fields, [fieldId]: null } }
+        if (field.type === 'multi-select' && Array.isArray(v))
+          return { ...item, fields: { ...item.fields, [fieldId]: (v as string[]).filter((x) => x !== option) } }
+        return item
+      })
+      const updated = touch({
+        ...s.collection,
+        schema: { ...s.collection.schema, fields: s.collection.schema.fields.map((f) => f.id === fieldId ? { ...f, options, optionColors } : f) },
         items,
       })
       return sync(s, updated)
