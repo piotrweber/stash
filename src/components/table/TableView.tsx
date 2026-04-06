@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, TableProperties, Image, PenLine, ChevronsUp, ChevronsDown, Plus, RotateCcw,
+  ZoomOut, ZoomIn, TableProperties, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight,
 } from 'lucide-react'
 import {
   DndContext,
@@ -1444,14 +1444,14 @@ function FocusGroupHeader({ label }: { label: string; field?: Field }) {
 function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Partial<Item>) => void }) {
   const { addRevision, deleteRevision } = useCollectionStore()
   const revisions = item.revisions ?? []
+  const [revIdx, setRevIdx] = useState(0)
 
-  const formatRevTime = (iso: string) => {
-    const d = new Date(iso)
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' +
-      d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  }
+  // Keep index in bounds as revisions change
+  const clampedIdx = revisions.length === 0 ? 0 : Math.min(revIdx, revisions.length - 1)
+  const currentRev = revisions[clampedIdx] ?? null
 
-  const restore = (rev: NonNullable<Item['revisions']>[number]) => {
+  const swap = (rev: NonNullable<Item['revisions']>[number]) => {
+    addRevision(item.id)
     onUpdate({ name: rev.name, description: rev.description })
   }
 
@@ -1487,57 +1487,63 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
         )}
       </div>
 
-      {/* Text */}
+      {/* Text + save */}
       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
         <FocusInlineInput value={item.name} onSave={(v) => onUpdate({ name: v })} placeholder="Title…" />
         <FocusTextarea value={item.description} onSave={(v) => onUpdate({ description: v })} placeholder="Write something…" />
+        <button
+          onClick={() => addRevision(item.id)}
+          className="self-start flex items-center gap-1 mt-2 text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border px-2 py-0.5 transition-colors"
+        >
+          <Plus size={11} />
+          Save revision
+        </button>
       </div>
 
-      {/* Revisions panel */}
-      <div className="w-52 shrink-0 border-l border-border pl-4 self-stretch flex flex-col min-h-[96px]">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Revisions</span>
-          <button
-            onClick={() => addRevision(item.id)}
-            title="Save revision"
-            className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border px-2 py-0.5 transition-colors"
-          >
-            <Plus size={11} />
-            Save
-          </button>
-        </div>
-
+      {/* Revisions carousel */}
+      <div className="w-64 shrink-0 border-l border-border pl-5 self-stretch flex flex-col min-h-[96px]">
         {revisions.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground/50 italic">No revisions yet.</p>
-        ) : (
-          <div className="flex flex-col divide-y divide-border">
-            {revisions.map((rev) => (
-              <div key={rev.id} className="group flex items-start gap-2 py-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-muted-foreground tabular-nums">{formatRevTime(rev.createdAt)}</p>
-                  <p className="text-xs text-foreground truncate mt-0.5">{rev.name || <span className="italic text-muted-foreground">Untitled</span>}</p>
-                  {rev.description && (
-                    <p className="text-[11px] text-muted-foreground truncate">{rev.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pt-0.5">
-                  <button
-                    onClick={() => restore(rev)}
-                    title="Restore this revision"
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <RotateCcw size={11} />
-                  </button>
-                  <button
-                    onClick={() => deleteRevision(item.id, rev.id)}
-                    title="Delete revision"
-                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                </div>
+          <p className="text-xs text-foreground/40 italic">No revisions yet.</p>
+        ) : currentRev && (
+          <div className="flex flex-col gap-2 flex-1">
+            <p className="text-sm font-semibold text-foreground line-clamp-1">{currentRev.name || <span className="italic text-foreground/40">Untitled</span>}</p>
+            {currentRev.description && (
+              <p className="text-xs text-foreground/70 line-clamp-4 leading-relaxed">{currentRev.description}</p>
+            )}
+            <div className="flex items-center gap-1 mt-auto pt-2">
+              <button
+                onClick={() => setRevIdx(i => Math.max(0, i - 1))}
+                disabled={clampedIdx === 0}
+                className="p-0.5 text-foreground/40 hover:text-foreground disabled:opacity-25 transition-colors"
+              >
+                <ChevronLeft size={13} />
+              </button>
+              <span className="text-[11px] tabular-nums text-foreground/50">{clampedIdx + 1}/{revisions.length}</span>
+              <button
+                onClick={() => setRevIdx(i => Math.min(revisions.length - 1, i + 1))}
+                disabled={clampedIdx === revisions.length - 1}
+                className="p-0.5 text-foreground/40 hover:text-foreground disabled:opacity-25 transition-colors"
+              >
+                <ChevronRight size={13} />
+              </button>
+              <div className="flex items-center gap-1 ml-auto">
+                <button
+                  onClick={() => swap(currentRev)}
+                  title="Swap current with this revision"
+                  className="flex items-center gap-1 text-xs font-medium text-foreground/70 hover:text-foreground border border-border px-2.5 py-1 transition-colors"
+                >
+                  <ArrowLeftRight size={12} />
+                  Swap
+                </button>
+                <button
+                  onClick={() => deleteRevision(item.id, currentRev.id)}
+                  title="Delete revision"
+                  className="p-1 text-foreground/40 hover:text-destructive transition-colors"
+                >
+                  <Trash2 size={11} />
+                </button>
               </div>
-            ))}
+            </div>
           </div>
         )}
       </div>
