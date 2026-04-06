@@ -33,6 +33,8 @@ interface CollectionStore {
   deleteItem: (id: string) => void
   moveItem: (id: string, pos: CanvasPosition) => void
   reorderItems: (orderedIds: string[]) => void
+  addRevision: (itemId: string) => void
+  deleteRevision: (itemId: string, revisionId: string) => void
 
   // Schema actions
   addField: (field: Omit<Field, 'id'>) => void
@@ -380,6 +382,33 @@ export const useCollectionStore = create<CollectionStore>()(
       const reordered = orderedIds.map((id) => map.get(id)).filter(Boolean) as typeof s.collection.items
       const missed = s.collection.items.filter((it) => !new Set(orderedIds).has(it.id))
       const updated = touch({ ...s.collection, items: [...reordered, ...missed] })
+      return sync(s, updated)
+    }),
+
+  addRevision: (itemId) =>
+    set((s) => {
+      if (!s.collection) return s
+      const item = s.collection.items.find((it) => it.id === itemId)
+      if (!item) return s
+      const revision = { id: nanoid(), createdAt: new Date().toISOString(), name: item.name, description: item.description }
+      const updated = touch({
+        ...s.collection,
+        items: s.collection.items.map((it) =>
+          it.id === itemId ? { ...it, revisions: [revision, ...(it.revisions ?? [])] } : it
+        ),
+      })
+      return sync(s, updated)
+    }),
+
+  deleteRevision: (itemId, revisionId) =>
+    set((s) => {
+      if (!s.collection) return s
+      const updated = touch({
+        ...s.collection,
+        items: s.collection.items.map((it) =>
+          it.id === itemId ? { ...it, revisions: (it.revisions ?? []).filter((r) => r.id !== revisionId) } : it
+        ),
+      })
       return sync(s, updated)
     }),
 

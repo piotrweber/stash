@@ -13,6 +13,13 @@ export interface CanvasPosition {
   y: number
 }
 
+export interface Revision {
+  id: string
+  createdAt: string
+  name: string
+  description: string
+}
+
 export interface Item {
   id: string
   name: string
@@ -20,6 +27,7 @@ export interface Item {
   imagePath: string
   fields: Record<string, string | string[] | number | null>
   canvas: CanvasPosition
+  revisions?: Revision[]
 }
 
 export interface Frame {

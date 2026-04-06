@@ -4,6 +4,7 @@
 
 Header should collapse to the project name when scrolling
 
+After 
 
 Filter should help with understand what is missing and what is done
 Add image (set / not set) to filters

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, TableProperties, Image, PenLine, ChevronsUp, ChevronsDown,
+  ZoomOut, ZoomIn, TableProperties, Image, PenLine, ChevronsUp, ChevronsDown, Plus, RotateCcw,
 } from 'lucide-react'
 import {
   DndContext,
@@ -1455,9 +1455,22 @@ function FocusGroupHeader({ label }: { label: string; field?: Field }) {
 // ─── Focus item card ──────────────────────────────────────────────────────────
 
 function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Partial<Item>) => void }) {
+  const { addRevision, deleteRevision } = useCollectionStore()
+  const revisions = item.revisions ?? []
+
+  const formatRevTime = (iso: string) => {
+    const d = new Date(iso)
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' +
+      d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const restore = (rev: NonNullable<Item['revisions']>[number]) => {
+    onUpdate({ name: rev.name, description: rev.description })
+  }
+
   return (
     <div className="flex items-start gap-5 py-6 border-b border-border/60 last:border-0">
-      {/* Image — small, rounded */}
+      {/* Image */}
       <div
         onClick={() => {
           const input = document.createElement('input')
@@ -1472,10 +1485,8 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
           }
           input.click()
         }}
-        className={`w-24 h-24 shrink-0 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
-          item.imagePath
-            ? 'hover:opacity-80'
-            : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border hover:border-border/80'
+        className={`w-24 h-24 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
+          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border'
         }`}
         title={item.imagePath ? 'Click to replace' : 'Click to upload'}
       >
@@ -1491,16 +1502,57 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
 
       {/* Text */}
       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <FocusInlineInput
-          value={item.name}
-          onSave={(v) => onUpdate({ name: v })}
-          placeholder="Title…"
-        />
-        <FocusTextarea
-          value={item.description}
-          onSave={(v) => onUpdate({ description: v })}
-          placeholder="Write something…"
-        />
+        <FocusInlineInput value={item.name} onSave={(v) => onUpdate({ name: v })} placeholder="Title…" />
+        <FocusTextarea value={item.description} onSave={(v) => onUpdate({ description: v })} placeholder="Write something…" />
+      </div>
+
+      {/* Revisions panel */}
+      <div className="w-52 shrink-0 border-l border-border pl-4 self-stretch flex flex-col min-h-[96px]">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Revisions</span>
+          <button
+            onClick={() => addRevision(item.id)}
+            title="Save revision"
+            className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border px-2 py-0.5 transition-colors"
+          >
+            <Plus size={11} />
+            Save
+          </button>
+        </div>
+
+        {revisions.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground/50 italic">No revisions yet.</p>
+        ) : (
+          <div className="flex flex-col divide-y divide-border">
+            {revisions.map((rev) => (
+              <div key={rev.id} className="group flex items-start gap-2 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-muted-foreground tabular-nums">{formatRevTime(rev.createdAt)}</p>
+                  <p className="text-xs text-foreground truncate mt-0.5">{rev.name || <span className="italic text-muted-foreground">Untitled</span>}</p>
+                  {rev.description && (
+                    <p className="text-[11px] text-muted-foreground truncate">{rev.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pt-0.5">
+                  <button
+                    onClick={() => restore(rev)}
+                    title="Restore this revision"
+                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                  <button
+                    onClick={() => deleteRevision(item.id, rev.id)}
+                    title="Delete revision"
+                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
