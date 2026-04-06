@@ -32,11 +32,13 @@ interface TableViewProps {
 }
 
 export function TableView({ onGoToProjects }: TableViewProps) {
-  const { collection, addItem, updateItem, deleteItem, reorderItems, setTableState, renameProject, saveProject, isDirty } = useCollectionStore()
+  const { collection, addItem, updateItem, deleteItem, reorderItems, setTableState, renameProject } = useCollectionStore()
   const [viewMode, setViewMode] = useState<'catalogue' | 'focus' | 'cards'>('catalogue')
   const [zoom, setZoom] = useState(1)
   const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [scrolled, setScrolled] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [groupBy, setGroupBy] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overGroup, setOverGroup] = useState<string | null>(null)
@@ -57,6 +59,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
     setDraft(null)
   }
   const cancelDraft = () => setDraft(null)
+
 
   const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 1.75]
 
@@ -171,131 +174,115 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
         {/* ── Fixed header ── */}
         <div className="shrink-0 bg-background border-b border-border">
-          <div className="max-w-4xl mx-auto px-8 pt-8 pb-3">
-            {/* Back link */}
-            <button
-              onClick={onGoToProjects}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
-            >
-              <ChevronLeft size={12} />
-              Projects
-            </button>
+          {/* Collapsible title row */}
+          <div
+            className="overflow-hidden transition-all duration-200 ease-in-out"
+            style={{ maxHeight: scrolled ? 0 : 200, opacity: scrolled ? 0 : 1 }}
+          >
+            <div className="max-w-4xl mx-auto px-8 pt-6 pb-3">
+              {/* Back link */}
+              <button
+                onClick={onGoToProjects}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2"
+              >
+                <ChevronLeft size={12} />
+                Projects
+              </button>
 
-            {/* Title row */}
-            <ProjectTitleInput
-              value={collection.meta.name}
-              onSave={(name) => renameProject(name)}
-            />
-
-            {/* Controls row — bulk bar or regular toolbar */}
-            {selectedIds.size > 0 ? (
-              <div className="mt-4">
-                <BulkActionBar
-                  count={selectedIds.size}
-                  fields={fields}
-                  selectedIds={selectedIds}
-                  onClear={clearSelection}
-                  onDelete={(ids) => {
-                    ids.forEach((id) => deleteItem(id))
-                    clearSelection()
-                  }}
-                  onSetField={(fieldId, value) => {
-                    selectedIds.forEach((id) => {
-                      const item = collection.items.find((it) => it.id === id)
-                      if (item) updateItem(id, { fields: { ...item.fields, [fieldId]: value } })
-                    })
-                  }}
-                />
-              </div>
-            ) : (
-            <div className="flex items-center gap-2 mt-4">
-
-              {/* Group 1: Data */}
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  onClick={() => { if (!draft) setDraft({ name: '', description: '', imagePath: '', fields: {} }) }}
-                  disabled={!!draft}
-                >
-                  + New
-                </Button>
-                <Button
-                  size="sm"
-                  variant={isDirty ? 'outline' : 'ghost'}
-                  onClick={() => {
-                    const json = saveProject()
-                    if (!json || !collection) return
-                    const blob = new Blob([json], { type: 'application/json' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `${collection.meta.name}.json`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  }}
-                  className={isDirty ? 'border-amber-300 text-amber-600 hover:bg-amber-50' : 'text-muted-foreground'}
-                >
-                  {isDirty ? 'Save' : 'Saved'}
-                </Button>
-              </div>
-
-              <div className="w-px h-4 bg-border mx-1" />
-
-              {/* Group 2: View */}
-              <div className="flex items-center gap-1">
-                <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
-                {(viewMode === 'catalogue' || viewMode === 'cards') && (
-                  <>
-                    <div className="w-px h-4 bg-border mx-0.5" />
-                    <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
-                    {grouped && (
-                      <>
-                        <div className="w-px h-4 bg-border mx-0.5" />
-                        <button
-                          onClick={() => setAllCollapsed((v) => v === true ? null : true)}
-                          title="Collapse all"
-                          className={`p-1.5 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                        >
-                          <ChevronsUp size={14} />
-                        </button>
-                        <button
-                          onClick={() => setAllCollapsed((v) => v === false ? null : false)}
-                          title="Expand all"
-                          className={`p-1.5 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                        >
-                          <ChevronsDown size={14} />
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="w-px h-4 bg-border mx-1" />
-
-              {/* Group 3: Filter/Sort/Group */}
-              <div className="ml-auto">
-                <FilterSortBar
-                  bare
-                  sortFields={sortFields}
-                  filterFields={filterFields}
-                  schemaFields={fields}
-                  sortBy={tableState.sortBy}
-                  sortDir={tableState.sortDir}
-                  onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
-                  filters={tableState.filters}
-                  onFiltersChange={(f) => setTableState({ filters: f })}
-                  groupBy={groupBy}
-                  onGroupByChange={(id) => { setGroupBy(id); setAllCollapsed(null) }}
-                  groupableFields={groupableFields}
-                />
-              </div>
+              {/* Title row */}
+              <ProjectTitleInput
+                value={collection.meta.name}
+                onSave={(name) => renameProject(name)}
+              />
             </div>
+          </div>
+
+          {/* Toolbar row */}
+          <div className="max-w-4xl mx-auto px-8 pb-3" style={{ paddingTop: scrolled ? 8 : 0 }}>
+            {selectedIds.size > 0 ? (
+              <BulkActionBar
+                count={selectedIds.size}
+                fields={fields}
+                selectedIds={selectedIds}
+                onClear={clearSelection}
+                onDelete={(ids) => {
+                  ids.forEach((id) => deleteItem(id))
+                  clearSelection()
+                }}
+                onSetField={(fieldId, value) => {
+                  selectedIds.forEach((id) => {
+                    const item = collection.items.find((it) => it.id === id)
+                    if (item) updateItem(id, { fields: { ...item.fields, [fieldId]: value } })
+                  })
+                }}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    onClick={() => { if (!draft) setDraft({ name: '', description: '', imagePath: '', fields: {} }) }}
+                    disabled={!!draft}
+                  >
+                    + New
+                  </Button>
+                </div>
+
+                <div className="w-px h-4 bg-border mx-1" />
+
+                <div className="flex items-center gap-1">
+                  <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
+                  {(viewMode === 'catalogue' || viewMode === 'cards') && (
+                    <>
+                      <div className="w-px h-4 bg-border mx-0.5" />
+                      <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
+                      {grouped && (
+                        <>
+                          <div className="w-px h-4 bg-border mx-0.5" />
+                          <button
+                            onClick={() => setAllCollapsed((v) => v === true ? null : true)}
+                            title="Collapse all"
+                            className={`p-1.5 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                          >
+                            <ChevronsUp size={14} />
+                          </button>
+                          <button
+                            onClick={() => setAllCollapsed((v) => v === false ? null : false)}
+                            title="Expand all"
+                            className={`p-1.5 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                          >
+                            <ChevronsDown size={14} />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="w-px h-4 bg-border mx-1" />
+
+                <div className="ml-auto">
+                  <FilterSortBar
+                    bare
+                    sortFields={sortFields}
+                    filterFields={filterFields}
+                    schemaFields={fields}
+                    sortBy={tableState.sortBy}
+                    sortDir={tableState.sortDir}
+                    onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
+                    filters={tableState.filters}
+                    onFiltersChange={(f) => setTableState({ filters: f })}
+                    groupBy={groupBy}
+                    onGroupByChange={(id) => { setGroupBy(id); setAllCollapsed(null) }}
+                    groupableFields={groupableFields}
+                  />
+                </div>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={(e) => setScrolled((e.currentTarget as HTMLDivElement).scrollTop > 24)}>
           <div className="max-w-4xl mx-auto px-8">
 
             {/* ── Draft new item row (sticky) ── */}
@@ -1430,9 +1417,9 @@ function ViewModeToggle({ mode, onChange }: {
 
   return (
     <div className="flex items-center border border-border overflow-hidden">
-      {btn('catalogue', 'Table', <TableProperties size={13} />)}
+      {btn('catalogue', 'Properties', <TableProperties size={13} />)}
       <div className="w-px h-4 bg-border" />
-      {btn('cards', 'Gallery', <Image size={13} />)}
+      {btn('cards', 'Images', <Image size={13} />)}
       <div className="w-px h-4 bg-border" />
       {btn('focus', 'Text', <PenLine size={13} />)}
     </div>

@@ -146,10 +146,6 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
 }) {
   return (
     <Dropdown pos={pos} onClose={onClose} width={220}>
-      <div className="px-3 py-2 border-b border-border">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sort</span>
-      </div>
-
       {sortBy && (
         <div className="px-3 py-2.5 border-b border-border/50">
           <div className="flex items-center gap-2 mb-2">
@@ -180,7 +176,6 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
       )}
 
       <div className="py-1">
-        {!sortBy && <p className="text-xs text-muted-foreground px-3 py-2">Pick a field to sort by</p>}
         {sortFields.map((f) => (
           <button
             key={f.id}
@@ -209,9 +204,6 @@ function GroupDropdown({ groupBy, groupableFields, onChange, onClose, pos }: {
 }) {
   return (
     <Dropdown pos={pos} onClose={onClose} width={200}>
-      <div className="px-3 py-2 border-b border-border">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Group by</span>
-      </div>
       <div className="py-1">
         <button
           onClick={() => { onChange(null); onClose() }}
@@ -265,6 +257,23 @@ export function FilterSortBar({
 
   const inner = (
     <div className="flex items-center gap-0.5 flex-wrap">
+      {/* Group */}
+      {onGroupByChange && groupableFields && groupableFields.length > 0 && (
+        <button
+          ref={groupBtnRef}
+          onClick={() => { closeAll(); groupDrop.toggle() }}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            groupBy
+              ? 'bg-accent text-primary hover:bg-accent'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          <Layers2 size={12} />
+          Group
+          {groupName && <span className="text-primary font-semibold">{groupName}</span>}
+        </button>
+      )}
+
       {/* Filter */}
       <button
         ref={filterBtnRef}
@@ -300,23 +309,6 @@ export function FilterSortBar({
           <span className="text-primary font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
         )}
       </button>
-
-      {/* Group */}
-      {onGroupByChange && groupableFields && groupableFields.length > 0 && (
-        <button
-          ref={groupBtnRef}
-          onClick={() => { closeAll(); groupDrop.toggle() }}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-            groupBy
-              ? 'bg-accent text-primary hover:bg-accent'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
-        >
-          <Layers2 size={12} />
-          Group
-          {groupName && <span className="text-primary font-semibold">{groupName}</span>}
-        </button>
-      )}
 
       {hasActive && (
         <button
