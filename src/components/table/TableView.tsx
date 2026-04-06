@@ -1236,14 +1236,14 @@ function FieldChip({ field, value, onChange }: {
     const colorKey = label ? field.optionColors?.[label] : undefined
     return label
       ? <OptionTag label={label} colorKey={colorKey} />
-      : <span className="text-[11px] text-muted-foreground/30">—</span>
+      : <span className="text-[11px] text-muted-foreground/60">—</span>
   }
 
   if (field.type === 'multi-select') {
     const selected: string[] = Array.isArray(value) ? value : []
     return selected.length > 0
       ? <div className="flex flex-wrap gap-1">{selected.map((s) => <OptionTag key={s} label={s} colorKey={field.optionColors?.[s]} />)}</div>
-      : <span className="text-[11px] text-muted-foreground/30">—</span>
+      : <span className="text-[11px] text-muted-foreground/60">—</span>
   }
 
   if (field.type === 'text') {
@@ -1287,7 +1287,7 @@ function InlineInput({ value, onSave, placeholder = '', className = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
       placeholder={placeholder}
-      className={`block w-full bg-transparent border border-transparent rounded px-1 py-0.5 focus:bg-background focus:border-primary/50 focus:outline-none placeholder:text-muted-foreground/40 transition-colors ${className}`}
+      className={`block w-full bg-transparent border border-transparent rounded px-1 py-0.5 focus:bg-background focus:border-primary/50 focus:outline-none placeholder:text-muted-foreground/60 transition-colors ${className}`}
     />
   )
 }
@@ -1503,26 +1503,26 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
       {/* Revisions carousel */}
       <div className="w-64 shrink-0 border-l border-border pl-5 self-stretch flex flex-col min-h-[96px]">
         {revisions.length === 0 ? (
-          <p className="text-xs text-foreground/40 italic">No revisions yet.</p>
+          <p className="text-xs text-foreground/60 italic">No revisions yet.</p>
         ) : currentRev && (
           <div className="flex flex-col gap-2 flex-1">
-            <p className="text-sm font-semibold text-foreground line-clamp-1">{currentRev.name || <span className="italic text-foreground/40">Untitled</span>}</p>
+            <p className="text-sm font-semibold text-foreground line-clamp-1">{currentRev.name || <span className="italic text-foreground/60">Untitled</span>}</p>
             {currentRev.description && (
-              <p className="text-xs text-foreground/70 line-clamp-4 leading-relaxed">{currentRev.description}</p>
+              <p className="text-xs text-foreground/85 line-clamp-4 leading-relaxed">{currentRev.description}</p>
             )}
             <div className="flex items-center gap-1 mt-auto pt-2">
               <button
                 onClick={() => setRevIdx(i => Math.max(0, i - 1))}
                 disabled={clampedIdx === 0}
-                className="p-0.5 text-foreground/40 hover:text-foreground disabled:opacity-25 transition-colors"
+                className="p-0.5 text-foreground/60 hover:text-foreground disabled:opacity-25 transition-colors"
               >
                 <ChevronLeft size={13} />
               </button>
-              <span className="text-[11px] tabular-nums text-foreground/50">{clampedIdx + 1}/{revisions.length}</span>
+              <span className="text-[11px] tabular-nums text-foreground/70">{clampedIdx + 1}/{revisions.length}</span>
               <button
                 onClick={() => setRevIdx(i => Math.min(revisions.length - 1, i + 1))}
                 disabled={clampedIdx === revisions.length - 1}
-                className="p-0.5 text-foreground/40 hover:text-foreground disabled:opacity-25 transition-colors"
+                className="p-0.5 text-foreground/60 hover:text-foreground disabled:opacity-25 transition-colors"
               >
                 <ChevronRight size={13} />
               </button>
@@ -1538,7 +1538,7 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
                 <button
                   onClick={() => deleteRevision(item.id, currentRev.id)}
                   title="Delete revision"
-                  className="p-1 text-foreground/40 hover:text-destructive transition-colors"
+                  className="p-1 text-foreground/60 hover:text-destructive transition-colors"
                 >
                   <Trash2 size={11} />
                 </button>
@@ -1570,7 +1570,7 @@ function FocusInlineInput({ value, onSave, placeholder = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
       placeholder={placeholder}
-      className="block w-full bg-transparent border-none outline-none font-serif font-semibold text-lg text-foreground placeholder:text-muted-foreground/40 leading-snug"
+      className="block w-full bg-transparent border-none outline-none font-serif font-semibold text-lg text-foreground placeholder:text-muted-foreground/60 leading-snug"
     />
   )
 }
@@ -1604,7 +1604,7 @@ function FocusTextarea({ value, onSave, placeholder = '' }: {
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLTextAreaElement).blur() }
       }}
       placeholder={placeholder}
-      className="block w-full bg-transparent border-none outline-none font-serif text-base text-foreground/70 leading-relaxed resize-none placeholder:text-muted-foreground/40"
+      className="block w-full bg-transparent border-none outline-none font-serif text-base text-foreground leading-relaxed resize-none placeholder:text-muted-foreground/60"
     />
   )
 }
@@ -1624,7 +1624,7 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
-      className="block w-full bg-transparent border-none outline-none font-serif text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 leading-tight"
+      className="block w-full bg-transparent border-none outline-none font-serif text-3xl font-bold text-foreground placeholder:text-muted-foreground/60 leading-tight"
       placeholder="Untitled"
     />
   )

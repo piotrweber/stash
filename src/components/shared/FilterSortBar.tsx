@@ -150,7 +150,7 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
         <div className="px-3 py-2.5 border-b border-border/50">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs text-muted-foreground font-medium flex-1">{sortFields.find((f) => f.id === sortBy)?.name}</span>
-            <button onClick={() => onChange(null, 'asc')} className="text-muted-foreground/50 hover:text-destructive transition-colors text-base leading-none">×</button>
+            <button onClick={() => onChange(null, 'asc')} className="text-muted-foreground hover:text-destructive transition-colors text-base leading-none">×</button>
           </div>
           <div className="flex gap-1">
             <button
