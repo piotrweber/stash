@@ -81,7 +81,7 @@ function Dropdown({ pos, onClose, children, width = 260 }: {
     <div
       ref={ref}
       style={{ position: 'fixed', top, left, width, zIndex: 9999 }}
-      className="bg-popover border border-border rounded-xl shadow-lg overflow-hidden"
+      className="bg-popover border border-border rounded-xl  overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {children}
@@ -278,7 +278,7 @@ export function FilterSortBar({
         <ListFilter size={12} />
         Filter
         {filters.length > 0 && (
-          <span className="bg-primary/20 text-primary rounded-full px-1.5 text-[10px] font-semibold leading-4">
+          <span className="bg-primary/20 text-primary rounded px-1.5 text-[10px] font-semibold leading-4">
             {filters.length}
           </span>
         )}

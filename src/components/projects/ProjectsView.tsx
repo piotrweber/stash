@@ -101,7 +101,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+            <h1 className="font-serif text-2xl font-semibold tracking-tight">Projects</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your collections</p>
           </div>
           <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                   <button
                     key={project.meta.id}
                     onClick={() => onOpen(project.meta.id)}
-                    className="group relative bg-card rounded-xl border border-border text-left hover:border-primary/40 hover:shadow-md transition-all duration-150 overflow-hidden cursor-pointer"
+                    className="group relative bg-card rounded-xl border border-border text-left hover:border-primary/40 hover: transition-all duration-150 overflow-hidden cursor-pointer"
                   >
                     {/* Delete */}
                     <button
@@ -283,7 +283,7 @@ function CreateCard({ icon, label, description, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-start gap-3 bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover:shadow-md transition-all duration-150 group cursor-pointer"
+      className="flex flex-col items-start gap-3 bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover: transition-all duration-150 group cursor-pointer"
     >
       <span className="text-muted-foreground group-hover:text-primary transition-colors">{icon}</span>
       <div>

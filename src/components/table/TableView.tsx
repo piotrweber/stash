@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, Table, LayoutGrid, AlignLeft, ChevronsUp, ChevronsDown,
+  ZoomOut, ZoomIn, TableProperties, Image, PenLine, ChevronsUp, ChevronsDown,
 } from 'lucide-react'
 import {
   DndContext,
@@ -514,7 +514,7 @@ function GroupSection({
       className={`rounded-xl transition-all duration-150 ${
         isDragging
           ? isOver
-            ? 'ring-2 ring-primary bg-accent/60 shadow-lg'
+            ? 'ring-2 ring-primary bg-accent/60 '
             : 'ring-1 ring-dashed ring-border'
           : ''
       }`}
@@ -622,7 +622,7 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
     <div
       ref={popRef}
       style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
-      className="bg-popover border border-border rounded-xl shadow-lg p-3 flex flex-col gap-3"
+      className="bg-popover border border-border rounded-xl  p-3 flex flex-col gap-3"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Name */}
@@ -651,7 +651,7 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
                   background: c.bg,
                   border: `2px solid ${colorKey === key ? c.text : c.border}`,
                 }}
-                className="w-6 h-6 rounded-full transition-transform hover:scale-110"
+                className="w-6 h-6 rounded transition-transform hover:scale-110"
                 title={key}
               />
             )
@@ -836,7 +836,7 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
     <div
       ref={popRef}
       style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
-      className="bg-popover border border-border rounded-xl shadow-lg overflow-hidden"
+      className="bg-popover border border-border rounded-xl  overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Rename + delete row */}
@@ -1034,7 +1034,7 @@ function OptionEditSubPopover({ opt, field, pos, onClose, onRename, onDelete, on
     <div
       ref={popRef}
       style={{ position: 'fixed', top, left, zIndex: 10000, width: 188 }}
-      className="bg-popover border border-border rounded-xl shadow-lg overflow-hidden p-3 flex flex-col gap-2.5"
+      className="bg-popover border border-border rounded-xl  overflow-hidden p-3 flex flex-col gap-2.5"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Rename + add + delete */}
@@ -1113,7 +1113,7 @@ function AddFieldPopover({ anchor, onClose, onAdd }: {
     <div
       ref={popRef}
       style={{ position: 'fixed', top, left, zIndex: 9999, width: 210 }}
-      className="bg-popover border border-border rounded-xl shadow-lg p-3 flex flex-col gap-3"
+      className="bg-popover border border-border rounded-xl  p-3 flex flex-col gap-3"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <input
@@ -1171,8 +1171,8 @@ function ItemCard({
   return (
     <div
       ref={setNodeRef}
-      className={`bg-card rounded-xl border shadow-sm transition-all ${
-        isDragging ? 'opacity-0' : 'hover:shadow-md'
+      className={`bg-card rounded-xl border  transition-all ${
+        isDragging ? 'opacity-0' : 'hover:'
       } ${selected ? 'border-primary/40 bg-accent/20' : 'border-border hover:border-border/80'}`}
     >
       <div className="flex items-start">
@@ -1415,25 +1415,26 @@ function ViewModeToggle({ mode, onChange }: {
   mode: 'catalogue' | 'focus' | 'cards'
   onChange: (m: 'catalogue' | 'focus' | 'cards') => void
 }) {
-  const btn = (m: typeof mode, title: string, icon: React.ReactNode) => (
+  const btn = (m: typeof mode, label: string, icon: React.ReactNode) => (
     <button
       onClick={() => onChange(m)}
-      title={title}
-      className={`flex items-center justify-center w-7 h-6 transition-colors ${
+      title={label}
+      className={`flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium transition-colors ${
         mode === m ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
       }`}
     >
       {icon}
+      {label}
     </button>
   )
 
   return (
-    <div className="flex items-center rounded-md border border-border overflow-hidden">
-      {btn('catalogue', 'Catalogue', <Table size={12} />)}
+    <div className="flex items-center border border-border overflow-hidden">
+      {btn('catalogue', 'Table', <TableProperties size={13} />)}
       <div className="w-px h-4 bg-border" />
-      {btn('cards', 'Cards', <LayoutGrid size={12} />)}
+      {btn('cards', 'Gallery', <Image size={13} />)}
       <div className="w-px h-4 bg-border" />
-      {btn('focus', 'Focus', <AlignLeft size={12} />)}
+      {btn('focus', 'Text', <PenLine size={13} />)}
     </div>
   )
 }
@@ -1578,7 +1579,7 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
-      className="block w-full bg-transparent border-none outline-none text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 leading-tight"
+      className="block w-full bg-transparent border-none outline-none font-serif text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 leading-tight"
       placeholder="Untitled"
     />
   )
@@ -1652,7 +1653,7 @@ function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
       ref={setNodeRef}
       style={style}
       className={`bg-card rounded-xl border overflow-hidden group transition-all ${
-        isDragging ? 'opacity-0' : 'hover:shadow-md hover:border-primary/30 border-border'
+        isDragging ? 'opacity-0' : 'hover: hover:border-primary/30 border-border'
       } ${overlay ? 'shadow-2xl border-primary/30' : ''}`}
     >
       {/* Image area — clickable for upload */}
@@ -1702,7 +1703,7 @@ function DraftItemCard({ draft, fields, onChange, onAdd, onCancel }: {
   const imageItem = { id: '__draft__', ...draft, canvas: { x: 0, y: 0 } } as Item
 
   return (
-    <div className="bg-card rounded-xl border border-primary/40 shadow-sm ring-1 ring-primary/10">
+    <div className="bg-card rounded-xl border border-primary/40  ring-1 ring-primary/10">
       <div className="flex items-start">
         {/* Spacer aligns with checkbox + drag handle in ItemCard */}
         <div className="w-[52px] shrink-0" />
@@ -1891,7 +1892,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
         return createPortal(
           <div
             style={{ position: 'fixed', top: fieldMenuPos.top, left: fieldMenuPos.left, zIndex: 9999, minWidth: 160 }}
-            className="bg-popover border border-border rounded-xl shadow-lg py-1"
+            className="bg-popover border border-border rounded-xl  py-1"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="px-3 py-1.5 border-b border-border/60">
@@ -1911,7 +1912,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
                   onClick={() => { onSetField(field.id, opt); setOpenFieldId(null) }}
                   className="flex items-center gap-2 w-full text-left px-3 py-2 hover:bg-muted/50"
                 >
-                  <span style={{ ...style, border: `1px solid ${style.borderColor}` }} className="text-[11px] px-2 py-0.5 rounded-full font-medium">
+                  <span style={{ ...style, border: `1px solid ${style.borderColor}` }} className="text-[11px] px-2 py-0.5 rounded font-medium">
                     {opt}
                   </span>
                 </button>
