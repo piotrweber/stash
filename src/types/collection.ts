@@ -28,6 +28,7 @@ export interface Item {
   fields: Record<string, string | string[] | number | null>
   canvas: CanvasPosition
   revisions?: Revision[]
+  imageNote?: string
 }
 
 export interface Frame {

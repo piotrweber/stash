@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, TableProperties, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight,
+  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal,
 } from 'lucide-react'
 import {
   DndContext,
@@ -39,6 +39,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [scrolled, setScrolled] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollToId, setScrollToId] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overGroup, setOverGroup] = useState<string | null>(null)
@@ -60,6 +61,17 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   }
   const cancelDraft = () => setDraft(null)
 
+
+  const goToProperties = (id: string) => {
+    setViewMode('catalogue')
+    setScrollToId(id)
+  }
+
+  useEffect(() => {
+    if (viewMode !== 'catalogue' || !scrollToId) return
+    const el = document.getElementById(`item-${scrollToId}`)
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setScrollToId(null) }
+  }, [viewMode, scrollToId])
 
   const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 1.75]
 
@@ -307,27 +319,26 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
             {/* ── Content ── */}
             {viewMode === 'cards' ? (
-              <SortableContext items={collection.items.map((it) => it.id)} strategy={rectSortingStrategy}>
-                <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
-                  {grouped ? (
-                    grouped.map(({ key, items }) => (
-                      <CardGroupSection
-                        key={key}
-                        groupKey={key}
-                        items={items}
-                        groupField={groupField}
-                        collapsedOverride={allCollapsed}
-                      />
-                    ))
-                  ) : (
-                    <div className="grid grid-cols-8 gap-3">
-                      {collection.items.map((item) => (
-                        <SortableCard key={item.id} item={item} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </SortableContext>
+              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
+                {grouped ? (
+                  grouped.map(({ key, items }) => (
+                    <CardGroupSection
+                      key={key}
+                      groupKey={key}
+                      items={items}
+                      groupField={groupField}
+                      collapsedOverride={allCollapsed}
+                      onGoToProperties={goToProperties}
+                    />
+                  ))
+                ) : (
+                  <div className="grid grid-cols-8 gap-3">
+                    {collection.items.map((item) => (
+                      <ImageCard key={item.id} item={item} onGoToProperties={goToProperties} />
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : viewMode === 'focus' ? (
               <div className={`flex flex-col ${draft ? 'pb-8' : 'py-6'}`}>
                 {grouped ? (
@@ -395,15 +406,9 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
       <DragOverlay>
         {draggingItem && (
-          viewMode === 'cards' ? (
-            <div className="opacity-90 rotate-1 shadow-2xl w-24">
-              <SortableCard item={draggingItem} overlay />
-            </div>
-          ) : (
-            <div className="opacity-90 rotate-1 shadow-2xl">
-              <ItemCard item={draggingItem} fields={fields} draggable={false} onUpdate={() => {}} />
-            </div>
-          )
+          <div className="opacity-90 rotate-1 shadow-2xl">
+            <ItemCard item={draggingItem} fields={fields} draggable={false} onUpdate={() => {}} />
+          </div>
         )}
       </DragOverlay>
     </DndContext>
@@ -1152,6 +1157,7 @@ function ItemCard({
 
   return (
     <div
+      id={`item-${item.id}`}
       ref={setNodeRef}
       className={`bg-card rounded-xl border  transition-all ${
         isDragging ? 'opacity-0' : 'hover:'
@@ -1334,7 +1340,7 @@ function ImageCell({ item, onUpdate, size = 'md' }: { item: Item; onUpdate: (pat
       className={`${dim} shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-all rounded-lg ${
         item.imagePath
           ? 'hover:opacity-80'
-          : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border hover:border-border/80'
+          : 'bg-muted hover:bg-muted/80'
       }`}
       title={item.imagePath ? 'Click to replace image' : 'Click to upload image'}
     >
@@ -1412,7 +1418,7 @@ function ViewModeToggle({ mode, onChange }: {
 
   return (
     <div className="flex items-center border border-border overflow-hidden">
-      {btn('catalogue', 'Properties', <TableProperties size={13} />)}
+      {btn('catalogue', 'Properties', <SlidersHorizontal size={13} />)}
       <div className="w-px h-4 bg-border" />
       {btn('cards', 'Images', <Image size={13} />)}
       <div className="w-px h-4 bg-border" />
@@ -1490,7 +1496,7 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
           input.click()
         }}
         className={`w-24 h-24 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
-          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border'
+          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80'
         }`}
         title={item.imagePath ? 'Click to replace' : 'Click to upload'}
       >
@@ -1649,11 +1655,12 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
 
 // ─── Card group section ───────────────────────────────────────────────────────
 
-function CardGroupSection({ groupKey, items, groupField, collapsedOverride }: {
+function CardGroupSection({ groupKey, items, groupField, collapsedOverride, onGoToProperties }: {
   groupKey: string
   items: Item[]
   groupField?: Field
   collapsedOverride?: boolean | null
+  onGoToProperties: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -1681,7 +1688,7 @@ function CardGroupSection({ groupKey, items, groupField, collapsedOverride }: {
       {!collapsed && (
         <div className="grid grid-cols-8 gap-3">
           {items.map((item) => (
-            <SortableCard key={item.id} item={item} />
+            <ImageCard key={item.id} item={item} onGoToProperties={onGoToProperties} />
           ))}
         </div>
       )}
@@ -1689,12 +1696,14 @@ function CardGroupSection({ groupKey, items, groupField, collapsedOverride }: {
   )
 }
 
-// ─── Sortable card (cards view) ───────────────────────────────────────────────
+// ─── Image card (images view) ─────────────────────────────────────────────────
 
-function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
+function ImageCard({ item, onGoToProperties }: { item: Item; onGoToProperties: (id: string) => void }) {
   const { updateItem } = useCollectionStore()
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteDraft, setNoteDraft] = useState(item.imageNote ?? '')
+  const noteAnchorRef = useRef<HTMLButtonElement>(null)
+  const [notePos, setNotePos] = useState<{ top: number; left: number } | null>(null)
 
   const handleImageClick = () => {
     const input = document.createElement('input')
@@ -1710,19 +1719,21 @@ function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
     input.click()
   }
 
+  const openNote = () => {
+    if (!noteAnchorRef.current) return
+    const r = noteAnchorRef.current.getBoundingClientRect()
+    setNotePos({ top: r.bottom + 4, left: r.left })
+    setNoteDraft(item.imageNote ?? '')
+    setNoteOpen(true)
+  }
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`bg-card rounded-xl border overflow-hidden group transition-all ${
-        isDragging ? 'opacity-0' : 'hover: hover:border-primary/30 border-border'
-      } ${overlay ? 'shadow-2xl border-primary/30' : ''}`}
-    >
-      {/* Image area — clickable for upload */}
+    <div className="bg-card border border-transparent group transition-all hover:border-border">
+      {/* Image area */}
       <div
         onClick={handleImageClick}
         className={`aspect-square relative overflow-hidden cursor-pointer transition-all ${
-          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80 border-b-2 border-dashed border-border hover:border-border/80'
+          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80'
         }`}
         title={item.imagePath ? 'Click to replace image' : 'Click to upload image'}
       >
@@ -1736,17 +1747,53 @@ function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
         )}
       </div>
 
-      {/* Name + drag handle */}
-      <div className="flex items-center gap-1.5 px-2.5 py-2">
-        <div
-          {...attributes}
-          {...listeners}
-          className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+      {/* Footer */}
+      <div className="flex border-t border-border opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => onGoToProperties(item.id)}
+          title="View in Properties"
+          className="flex-1 flex items-center justify-center py-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border-r border-border"
         >
-          <GripVertical size={14} />
-        </div>
-        <p className="text-xs font-medium text-foreground truncate">{item.name || <span className="text-muted-foreground/50 italic">Untitled</span>}</p>
+          <SlidersHorizontal size={14} />
+        </button>
+        <button
+          ref={noteAnchorRef}
+          onClick={openNote}
+          title="Add note"
+          className={`flex-1 flex items-center justify-center py-2 transition-colors hover:bg-muted/50 ${item.imageNote ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          <MessageSquare size={14} fill={item.imageNote ? 'currentColor' : 'none'} />
+        </button>
       </div>
+
+      {noteOpen && notePos && createPortal(
+        <div
+          style={{ position: 'fixed', top: notePos.top, left: notePos.left, width: 220, zIndex: 9999 }}
+          className="bg-popover border border-border"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-end px-2 pt-1.5">
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { updateItem(item.id, { imageNote: noteDraft }); setNoteOpen(false) }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <textarea
+            autoFocus
+            value={noteDraft}
+            rows={4}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onBlur={() => { updateItem(item.id, { imageNote: noteDraft }); setNoteOpen(false) }}
+            onKeyDown={(e) => { if (e.key === 'Escape') { updateItem(item.id, { imageNote: noteDraft }); setNoteOpen(false) } }}
+            placeholder="Add a note…"
+            className="w-full bg-transparent border-none outline-none text-xs text-foreground placeholder:text-muted-foreground resize-none leading-relaxed px-2 pb-2"
+          />
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
@@ -1840,7 +1887,7 @@ function DraftFocusItemCard({ draft, onChange, onAdd, onCancel }: {
           className={`w-24 h-24 shrink-0 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer transition-all ${
             draft.imagePath
               ? 'hover:opacity-80'
-              : 'bg-muted hover:bg-muted/80 border-2 border-dashed border-border hover:border-border/80'
+              : 'bg-muted hover:bg-muted/80'
           }`}
           title={draft.imagePath ? 'Click to replace' : 'Click to upload'}
         >
