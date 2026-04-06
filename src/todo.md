@@ -24,11 +24,12 @@ Properties
 - Descriptions shuold not be editable
 - Hovering the description shows a tooltip with the text
 - Reduce the width of the name desc space, truncate description
-- Add affordance to jump into text view positioned at the element 
+- Add an icon to the text cell to jump into text view positioned at the element 
+- Remove the drag row afoforcance
+
 - Change the properties view from cards to rows
 - add a table row with headings: Image, Text, and property names
 - When grouping is active ehac group should repeat 
-- Remove the drag row afoforcance
 - The + New button to the table header
 
 
@@ -38,8 +39,6 @@ Properties
 - The toolbar should occupy the same heih
 
 
-# Revisions
-I want to compare the current text with any revision: revisions should be a carousel nvigable with arrows. The save button needs to be closer to the text I'm writing. The restore should be more of swap button?
 
 # Header
 ## S

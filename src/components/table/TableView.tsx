@@ -232,31 +232,29 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
                 <div className="flex items-center gap-1">
                   <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
-                  {(viewMode === 'catalogue' || viewMode === 'cards') && (
-                    <>
-                      <div className="w-px h-4 bg-border mx-0.5" />
-                      <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
-                      {grouped && (
-                        <>
-                          <div className="w-px h-4 bg-border mx-0.5" />
-                          <button
-                            onClick={() => setAllCollapsed((v) => v === true ? null : true)}
-                            title="Collapse all"
-                            className={`p-1.5 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                          >
-                            <ChevronsUp size={14} />
-                          </button>
-                          <button
-                            onClick={() => setAllCollapsed((v) => v === false ? null : false)}
-                            title="Expand all"
-                            className={`p-1.5 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                          >
-                            <ChevronsDown size={14} />
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
+                  <>
+                    <div className="w-px h-4 bg-border mx-0.5" />
+                    <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
+                    {(viewMode === 'catalogue' || viewMode === 'cards') && grouped && (
+                      <>
+                        <div className="w-px h-4 bg-border mx-0.5" />
+                        <button
+                          onClick={() => setAllCollapsed((v) => v === true ? null : true)}
+                          title="Collapse all"
+                          className={`p-1.5 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                        >
+                          <ChevronsUp size={14} />
+                        </button>
+                        <button
+                          onClick={() => setAllCollapsed((v) => v === false ? null : false)}
+                          title="Expand all"
+                          className={`p-1.5 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                        >
+                          <ChevronsDown size={14} />
+                        </button>
+                      </>
+                    )}
+                  </>
                 </div>
 
                 <div className="w-px h-4 bg-border mx-1" />
@@ -334,16 +332,13 @@ export function TableView({ onGoToProjects }: TableViewProps) {
               <div className={`flex flex-col ${draft ? 'pb-8' : 'py-6'}`}>
                 {grouped ? (
                   grouped.map(({ key, items }) => (
-                    <div key={key}>
-                      <FocusGroupHeader label={key} field={groupField} />
-                      {items.map((item) => (
-                        <FocusItemCard
-                          key={item.id}
-                          item={item}
-                          onUpdate={(patch) => updateItem(item.id, patch)}
-                        />
-                      ))}
-                    </div>
+                    <FocusGroupSection
+                      key={key}
+                      groupKey={key}
+                      items={items}
+                      collapsedOverride={allCollapsed}
+                      onUpdate={(id, patch) => updateItem(id, patch)}
+                    />
                   ))
                 ) : (
                   processedItems.map((item) => (
@@ -1430,11 +1425,33 @@ function ViewModeToggle({ mode, onChange }: {
 
 // ─── Focus group header ───────────────────────────────────────────────────────
 
-function FocusGroupHeader({ label }: { label: string; field?: Field }) {
+function FocusGroupSection({ groupKey, items, collapsedOverride, onUpdate }: {
+  groupKey: string
+  items: Item[]
+  collapsedOverride?: boolean | null
+  onUpdate: (id: string, patch: Partial<Item>) => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (collapsedOverride !== null && collapsedOverride !== undefined) {
+      setCollapsed(collapsedOverride)
+    }
+  }, [collapsedOverride])
+
   return (
-    <div className="flex items-center gap-3 mt-8 mb-2 first:mt-0">
-      <span className="font-serif text-sm font-semibold text-muted-foreground">{label}</span>
-      <div className="flex-1 h-px bg-border/60" />
+    <div>
+      <div
+        className="flex items-center gap-2.5 px-2 py-2 mb-1 rounded-lg cursor-pointer select-none hover:bg-muted/50 transition-colors"
+        onClick={() => setCollapsed((v) => !v)}
+      >
+        <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+        <span className="font-semibold text-base text-foreground">{groupKey}</span>
+        <span className="text-sm text-muted-foreground">{items.length}</span>
+      </div>
+      {!collapsed && items.map((item) => (
+        <FocusItemCard key={item.id} item={item} onUpdate={(patch) => onUpdate(item.id, patch)} />
+      ))}
     </div>
   )
 }
