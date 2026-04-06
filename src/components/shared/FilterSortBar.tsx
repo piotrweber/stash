@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { ListFilter, ArrowUpDown, Layers2, ArrowUp, ArrowDown } from 'lucide-react'
 import type { Filter, Field } from '../../types/collection'
 
 type Op = Filter['op']
@@ -162,9 +163,7 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
                 sortDir === 'asc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M6 9V3M6 3L3 6M6 3l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <ArrowUp size={12} />
               Ascending
             </button>
             <button
@@ -173,9 +172,7 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
                 sortDir === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M6 3v6M6 9L3 6M6 9l3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <ArrowDown size={12} />
               Descending
             </button>
           </div>
@@ -272,15 +269,13 @@ export function FilterSortBar({
       <button
         ref={filterBtnRef}
         onClick={() => { closeAll(); filterDrop.toggle() }}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
           filters.length > 0
             ? 'bg-accent text-primary hover:bg-accent'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
+        <ListFilter size={12} />
         Filter
         {filters.length > 0 && (
           <span className="bg-primary/20 text-primary rounded-full px-1.5 text-[10px] font-semibold leading-4">
@@ -293,15 +288,13 @@ export function FilterSortBar({
       <button
         ref={sortBtnRef}
         onClick={() => { closeAll(); sortDrop.toggle() }}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
           sortBy
             ? 'bg-accent text-primary hover:bg-accent'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <path d="M2 5h12M4 8h8M6 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
+        <ArrowUpDown size={12} />
         Sort
         {sortName && (
           <span className="text-primary font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
@@ -313,18 +306,13 @@ export function FilterSortBar({
         <button
           ref={groupBtnRef}
           onClick={() => { closeAll(); groupDrop.toggle() }}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
             groupBy
               ? 'bg-accent text-primary hover:bg-accent'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-            <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-            <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-            <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-          </svg>
+          <Layers2 size={12} />
           Group
           {groupName && <span className="text-primary font-semibold">{groupName}</span>}
         </button>

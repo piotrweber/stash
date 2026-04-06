@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
+  ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
+  ZoomOut, ZoomIn, Table, LayoutGrid, AlignLeft, ChevronsUp, ChevronsDown,
+} from 'lucide-react'
+import {
   DndContext,
   DragOverlay,
   PointerSensor,
@@ -173,9 +177,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
               onClick={onGoToProjects}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <ChevronLeft size={12} />
               Projects
             </button>
 
@@ -252,22 +254,16 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                         <button
                           onClick={() => setAllCollapsed((v) => v === true ? null : true)}
                           title="Collapse all"
-                          className={`p-1 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                          className={`p-1.5 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                         >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                            <path d="M3 6h10M3 10h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-                            <path d="M11 8l2-2 2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
+                          <ChevronsUp size={14} />
                         </button>
                         <button
                           onClick={() => setAllCollapsed((v) => v === false ? null : false)}
                           title="Expand all"
-                          className={`p-1 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                          className={`p-1.5 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                         >
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                            <path d="M3 5h10M3 9h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-                            <path d="M11 11l2 2 2-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
+                          <ChevronsDown size={14} />
                         </button>
                       </>
                     )}
@@ -528,12 +524,7 @@ function GroupSection({
         className="flex items-center gap-2.5 px-2 py-2 mb-1 rounded-lg cursor-pointer select-none hover:bg-muted/50 transition-colors"
         onClick={() => setCollapsed((v) => !v)}
       >
-        <svg
-          width="12" height="12" viewBox="0 0 14 14" fill="none"
-          className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}
-        >
-          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
 
         {isEditableGroup && chipStyle ? (
           <button
@@ -673,9 +664,7 @@ function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
         onClick={onDelete}
         className="flex items-center gap-1.5 text-xs text-destructive/70 hover:text-destructive transition-colors text-left"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <Trash2 size={12} />
         Delete option
       </button>
     </div>,
@@ -864,12 +853,10 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
         />
         <button
           onClick={onDelete}
-          className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors p-1"
+          className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1.5"
           title="Delete field"
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <Trash2 size={13} />
         </button>
       </div>
 
@@ -912,9 +899,7 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
             onClick={addOption}
             className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground/60 hover:text-primary hover:bg-muted/40 transition-colors"
           >
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
+            <X size={10} className="rotate-45" />
             Add option
           </button>
         </>
@@ -989,14 +974,10 @@ function SortableOptionRow({ opt, field, selectedSingle, selected, isDragging, o
       <button
         {...attributes}
         {...listeners}
-        className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground transition-colors cursor-grab active:cursor-grabbing p-0.5"
+        className="shrink-0 text-muted-foreground hover:text-muted-foreground transition-colors cursor-grab active:cursor-grabbing p-0.5"
         tabIndex={-1}
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-          <circle cx="3" cy="2.5" r="1"/><circle cx="7" cy="2.5" r="1"/>
-          <circle cx="3" cy="5" r="1"/><circle cx="7" cy="5" r="1"/>
-          <circle cx="3" cy="7.5" r="1"/><circle cx="7" cy="7.5" r="1"/>
-        </svg>
+        <GripVertical size={14} />
       </button>
 
       {/* Value toggle */}
@@ -1013,11 +994,9 @@ function SortableOptionRow({ opt, field, selectedSingle, selected, isDragging, o
       {/* Edit arrow */}
       <button
         onClick={() => { if (rowRef.current) onOpenEdit(opt, rowRef.current) }}
-        className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-foreground transition-all p-0.5"
+        className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all p-0.5"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M3.5 2l4 3-4 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <ChevronRight size={10} />
       </button>
     </div>
   )
@@ -1072,12 +1051,10 @@ function OptionEditSubPopover({ opt, field, pos, onClose, onRename, onDelete, on
         />
         <button
           onClick={() => onDelete(opt)}
-          className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors p-1"
+          className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1.5"
           title="Delete option"
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <Trash2 size={12} />
         </button>
       </div>
 
@@ -1214,14 +1191,7 @@ function ItemCard({
           {...(draggable ? { ...attributes, ...listeners } : {})}
           className={`flex items-center justify-center self-stretch px-2 shrink-0 ${draggable ? 'cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground' : 'text-transparent'}`}
         >
-          <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
-            <circle cx="3.5" cy="3.5" r="1.2" fill="currentColor"/>
-            <circle cx="8.5" cy="3.5" r="1.2" fill="currentColor"/>
-            <circle cx="3.5" cy="8" r="1.2" fill="currentColor"/>
-            <circle cx="8.5" cy="8" r="1.2" fill="currentColor"/>
-            <circle cx="3.5" cy="12.5" r="1.2" fill="currentColor"/>
-            <circle cx="8.5" cy="12.5" r="1.2" fill="currentColor"/>
-          </svg>
+          <GripVertical size={14} />
         </div>
 
         {/* Image — padded to align with text */}
@@ -1390,10 +1360,7 @@ function ImageCell({ item, onUpdate, size = 'md' }: { item: Item; onUpdate: (pat
         <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
       ) : (
         <div className="flex flex-col items-center gap-1 text-muted-foreground select-none">
-          <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
-            <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+          <ImageUp size={iconSize} />
           {size !== 'sm' && <span className="text-[10px] font-medium tracking-wide uppercase">Image</span>}
         </div>
       )}
@@ -1416,13 +1383,10 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
       <button
         onClick={() => canDec && onChange(steps[idx - 1])}
         disabled={!canDec}
-        className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
+        className="p-1.5 rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
         title="Zoom out"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M5 7h4M11 11l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
+        <ZoomOut size={12} />
       </button>
       {zoom !== 1 && (
         <button
@@ -1436,13 +1400,10 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
       <button
         onClick={() => canInc && onChange(steps[idx + 1])}
         disabled={!canInc}
-        className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
+        className="p-1.5 rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-default transition-colors"
         title="Zoom in"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M5 7h4M7 5v4M11 11l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
+        <ZoomIn size={12} />
       </button>
     </div>
   )
@@ -1468,31 +1429,11 @@ function ViewModeToggle({ mode, onChange }: {
 
   return (
     <div className="flex items-center rounded-md border border-border overflow-hidden">
-      {btn('catalogue', 'Catalogue', (
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <rect x="1" y="1" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="9" y="1" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="1" y="7" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="9" y="7" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="1" y="13" width="6" height="2" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="9" y="13" width="6" height="2" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-        </svg>
-      ))}
+      {btn('catalogue', 'Catalogue', <Table size={12} />)}
       <div className="w-px h-4 bg-border" />
-      {btn('cards', 'Cards', (
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <rect x="1" y="1" width="6" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="9" y="1" width="6" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="1" y="11" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-          <rect x="9" y="11" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-        </svg>
-      ))}
+      {btn('cards', 'Cards', <LayoutGrid size={12} />)}
       <div className="w-px h-4 bg-border" />
-      {btn('focus', 'Focus', (
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-          <path d="M3 4h10M3 7h10M3 10h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      ))}
+      {btn('focus', 'Focus', <AlignLeft size={12} />)}
     </div>
   )
 }
@@ -1541,10 +1482,7 @@ function FocusItemCard({ item, onUpdate }: { item: Item; onUpdate: (patch: Parti
           <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
         ) : (
           <div className="flex flex-col items-center gap-1.5 text-muted-foreground select-none">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
+            <ImageUp size={22} />
             <span className="text-[10px] font-medium tracking-wide uppercase">Image</span>
           </div>
         )}
@@ -1669,9 +1607,7 @@ function CardGroupSection({ groupKey, items, groupField, collapsedOverride }: {
         className="flex items-center gap-2.5 px-1 py-2 mb-1 rounded-lg cursor-pointer select-none hover:bg-muted/50 transition-colors"
         onClick={() => setCollapsed((v) => !v)}
       >
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}>
-          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
         {isEditableGroup && chipStyle ? (
           <span style={{ color: chipStyle.color }} className="font-semibold text-base">{groupKey}</span>
         ) : (
@@ -1731,10 +1667,7 @@ function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
           <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground select-none">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
+            <ImageUp size={18} />
             <span className="text-[9px] font-medium tracking-wide uppercase">Image</span>
           </div>
         )}
@@ -1745,16 +1678,9 @@ function SortableCard({ item, overlay }: { item: Item; overlay?: boolean }) {
         <div
           {...attributes}
           {...listeners}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+          className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
         >
-          <svg width="10" height="12" viewBox="0 0 10 14" fill="none">
-            <circle cx="2.5" cy="2.5" r="1.2" fill="currentColor"/>
-            <circle cx="7.5" cy="2.5" r="1.2" fill="currentColor"/>
-            <circle cx="2.5" cy="7" r="1.2" fill="currentColor"/>
-            <circle cx="7.5" cy="7" r="1.2" fill="currentColor"/>
-            <circle cx="2.5" cy="11.5" r="1.2" fill="currentColor"/>
-            <circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/>
-          </svg>
+          <GripVertical size={14} />
         </div>
         <p className="text-xs font-medium text-foreground truncate">{item.name || <span className="text-muted-foreground/50 italic">Untitled</span>}</p>
       </div>
@@ -1859,10 +1785,7 @@ function DraftFocusItemCard({ draft, onChange, onAdd, onCancel }: {
             <img src={draft.imagePath} alt={draft.name} className="w-full h-full object-contain" />
           ) : (
             <div className="flex flex-col items-center gap-1.5 text-muted-foreground select-none">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M12 15V7M12 7l-3 3M12 7l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              <ImageUp size={22} />
               <span className="text-[10px] font-medium tracking-wide uppercase">Image</span>
             </div>
           )}
@@ -1922,7 +1845,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
         <button onClick={onClear} className="flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary/80 transition-colors shrink-0">
           <span className="w-5 h-5 bg-primary text-primary-foreground rounded flex items-center justify-center text-[11px] font-bold">{count}</span>
           selected
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          <X size={11} />
         </button>
 
         <div className="w-px h-4 bg-primary/20 mx-1" />
@@ -1943,7 +1866,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
                 }`}
               >
                 {f.name}
-                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                <ChevronDown size={9} />
               </button>
             ))}
           </div>
@@ -1957,9 +1880,7 @@ function BulkActionBar({ count, fields, selectedIds, onClear, onDelete, onSetFie
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded-md border border-transparent hover:border-destructive/20 transition-colors"
           title="Delete selected"
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <Trash2 size={13} />
           Delete
         </button>
       </div>

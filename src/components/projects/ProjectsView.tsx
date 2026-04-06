@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCollectionStore } from '../../store/collectionStore'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Plus, FileSpreadsheet, Images, FolderOpen, LayoutGrid, List, Copy, Trash2 } from 'lucide-react'
 
 interface ProjectsViewProps {
   onOpen: (id: string) => void
@@ -116,10 +117,10 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
 
         {/* Create cards */}
         <div className="grid grid-cols-4 gap-3 mb-12">
-          <CreateCard icon={<PlusIcon />} label="New project" description="Start from scratch" onClick={handleNewBlank} />
-          <CreateCard icon={<CsvIcon />} label="Import CSV" description="From spreadsheet" onClick={handleFromCsv} />
-          <CreateCard icon={<ImagesIcon />} label="Upload images" description="One item per image" onClick={handleFromImages} />
-          <CreateCard icon={<OpenIcon />} label="Open file" description="Load a .json file" onClick={handleLoadFile} />
+          <CreateCard icon={<Plus size={20} />} label="New project" description="Start from scratch" onClick={handleNewBlank} />
+          <CreateCard icon={<FileSpreadsheet size={20} />} label="Import CSV" description="From spreadsheet" onClick={handleFromCsv} />
+          <CreateCard icon={<Images size={20} />} label="Upload images" description="One item per image" onClick={handleFromImages} />
+          <CreateCard icon={<FolderOpen size={20} />} label="Open file" description="Load a .json file" onClick={handleLoadFile} />
         </div>
 
         {/* Projects list */}
@@ -137,7 +138,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                     viewMode === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <GridIcon />
+                  <LayoutGrid size={12} />
                 </button>
                 <div className="w-px h-4 bg-border" />
                 <button
@@ -147,7 +148,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                     viewMode === 'table' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <ListIcon />
+                  <List size={12} />
                 </button>
               </div>
             </div>
@@ -240,7 +241,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                               title="Duplicate"
                               className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
                             >
-                              <DuplicateIcon />
+                              <Copy size={12} />
                               Duplicate
                             </button>
                             <button
@@ -248,7 +249,7 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                               title="Delete"
                               className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
                             >
-                              <TrashIcon />
+                              <Trash2 size={12} />
                               Delete
                             </button>
                           </div>
@@ -293,76 +294,3 @@ function CreateCard({ icon, label, description, onClick }: {
   )
 }
 
-function PlusIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function CsvIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-      <path d="M14 2v6h6M8 13h8M8 17h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function ImagesIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <rect x="13" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <rect x="13" y="13" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-    </svg>
-  )
-}
-
-function OpenIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M17 8l-5-5-5 5M12 3v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function GridIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-      <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-      <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-      <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-    </svg>
-  )
-}
-
-function ListIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function DuplicateIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M3 11V3h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path d="M2.5 4h11M6 4V3h4v1M4.5 4l.5 9h6l.5-9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
