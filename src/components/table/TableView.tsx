@@ -62,13 +62,11 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   const cancelDraft = () => setDraft(null)
 
 
-  const goToProperties = (id: string) => {
-    setViewMode('catalogue')
-    setScrollToId(id)
-  }
+  const goToProperties = (id: string) => { setViewMode('catalogue'); setScrollToId(id) }
+  const goToText = (id: string) => { setViewMode('focus'); setScrollToId(id) }
 
   useEffect(() => {
-    if (viewMode !== 'catalogue' || !scrollToId) return
+    if (!scrollToId || (viewMode !== 'catalogue' && viewMode !== 'focus')) return
     const el = document.getElementById(`item-${scrollToId}`)
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setScrollToId(null) }
   }, [viewMode, scrollToId])
@@ -379,6 +377,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                         collapsedOverride={allCollapsed}
                         selectedIds={selectedIds}
                         onToggleSelect={toggleSelect}
+                        onGoToText={goToText}
                       />
                     ))}
                   </>
@@ -393,6 +392,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                         selected={selectedIds.has(item.id)}
                         onToggleSelect={() => toggleSelect(item.id)}
                         onUpdate={(patch) => updateItem(item.id, patch)}
+                        onGoToText={goToText}
                       />
                     ))}
                   </div>
@@ -407,7 +407,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
       <DragOverlay>
         {draggingItem && (
           <div className="opacity-90 rotate-1 shadow-2xl">
-            <ItemCard item={draggingItem} fields={fields} draggable={false} onUpdate={() => {}} />
+            <ItemCard item={draggingItem} fields={fields} draggable={false} onUpdate={() => {}} onGoToText={() => {}} />
           </div>
         )}
       </DragOverlay>
@@ -418,7 +418,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 // ─── Group section ────────────────────────────────────────────────────────────
 
 function GroupSection({
-  groupKey, items, fields, isOver, isDragging, onUpdate, groupField, collection, collapsedOverride, selectedIds, onToggleSelect,
+  groupKey, items, fields, isOver, isDragging, onUpdate, groupField, collection, collapsedOverride, selectedIds, onToggleSelect, onGoToText,
 }: {
   groupKey: string
   items: Item[]
@@ -431,6 +431,7 @@ function GroupSection({
   collapsedOverride?: boolean | null
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
+  onGoToText: (id: string) => void
 }) {
   const { updateField, updateItem } = useCollectionStore()
   const { setNodeRef } = useDroppable({ id: groupKey })
@@ -548,6 +549,7 @@ function GroupSection({
                 selected={selectedIds.has(item.id)}
                 onToggleSelect={() => onToggleSelect(item.id)}
                 onUpdate={(patch) => onUpdate(item.id, patch)}
+                onGoToText={onGoToText}
               />
             ))
           )}
@@ -1141,7 +1143,7 @@ function AddFieldPopover({ anchor, onClose, onAdd }: {
 // ─── Item card ────────────────────────────────────────────────────────────────
 
 function ItemCard({
-  item, fields, draggable, selected, onToggleSelect, onUpdate,
+  item, fields, draggable, selected, onToggleSelect, onUpdate, onGoToText,
 }: {
   item: Item
   fields: Field[]
@@ -1149,8 +1151,9 @@ function ItemCard({
   selected?: boolean
   onToggleSelect?: () => void
   onUpdate: (patch: Partial<Item>) => void
+  onGoToText: (id: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { setNodeRef, isDragging } = useDraggable({
     id: item.id,
     disabled: !draggable,
   })
@@ -1159,8 +1162,8 @@ function ItemCard({
     <div
       id={`item-${item.id}`}
       ref={setNodeRef}
-      className={`bg-card rounded-xl border  transition-all ${
-        isDragging ? 'opacity-0' : 'hover:'
+      className={`bg-card rounded-xl border transition-all ${
+        isDragging ? 'opacity-0' : ''
       } ${selected ? 'border-primary/40 bg-accent/20' : 'border-border hover:border-border/80'}`}
     >
       <div className="flex items-start">
@@ -1174,32 +1177,28 @@ function ItemCard({
           />
         </div>
 
-        {/* Drag handle */}
-        <div
-          {...(draggable ? { ...attributes, ...listeners } : {})}
-          className={`flex items-center justify-center self-stretch px-2 shrink-0 ${draggable ? 'cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground' : 'text-transparent'}`}
-        >
-          <GripVertical size={14} />
-        </div>
-
-        {/* Image — padded to align with text */}
+        {/* Image */}
         <div className="pt-3 pb-3 pl-1 pr-2 shrink-0">
           <ImageCell item={item} onUpdate={onUpdate} size="sm" />
         </div>
 
-        {/* Name + description */}
-        <div className="flex flex-col justify-center py-3 px-3 w-80 shrink-0 border-r border-border/60">
-          <InlineInput
-            value={item.name}
-            onSave={(v) => onUpdate({ name: v })}
-            className="text-sm font-medium text-foreground"
-          />
-          <InlineInput
-            value={item.description}
-            onSave={(v) => onUpdate({ description: v })}
-            placeholder="Description"
-            className="text-sm text-muted-foreground"
-          />
+        {/* Name + description — click to open in Text view */}
+        <div
+          onClick={() => onGoToText(item.id)}
+          className="flex flex-col justify-center py-3 px-3 w-52 shrink-0 border-r border-border/60 cursor-pointer hover:bg-muted/40 transition-colors"
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <InlineInput
+              value={item.name}
+              onSave={(v) => onUpdate({ name: v })}
+              className="text-sm font-medium text-foreground w-full"
+            />
+          </div>
+          {item.description && (
+            <span title={item.description} className="text-xs text-muted-foreground truncate block">
+              {item.description}
+            </span>
+          )}
         </div>
 
         {/* Fields — horizontally scrollable */}

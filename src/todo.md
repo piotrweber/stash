@@ -17,15 +17,6 @@ We need to design a consistent pattern for "none" items workflows:
 - Table view: Add and cancel are covering the area for properties, user your skills to find a better placement
 
 
-Images: 
-- Add field for notes
-
-Properties
-- Descriptions shuold not be editable
-- Hovering the description shows a tooltip with the text
-- Reduce the width of the name desc space, truncate description
-- Add an icon to the text cell to jump into text view positioned at the element 
-- Remove the drag row afoforcance
 
 - Change the properties view from cards to rows
 - add a table row with headings: Image, Text, and property names
