@@ -155,17 +155,17 @@ function SortDropdown({ sortBy, sortDir, sortFields, onChange, onClose, pos }: {
           <div className="flex gap-1">
             <button
               onClick={() => onChange(sortBy, 'asc')}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                sortDir === 'asc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50'
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium border transition-colors ${
+                sortDir === 'asc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
               }`}
             >
-              <ArrowUp size={12} />
+              <ArrowUp size={13} />
               Ascending
             </button>
             <button
               onClick={() => onChange(sortBy, 'desc')}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                sortDir === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50'
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium border transition-colors ${
+                sortDir === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
               }`}
             >
               <ArrowDown size={12} />
@@ -262,15 +262,15 @@ export function FilterSortBar({
         <button
           ref={groupBtnRef}
           onClick={() => { closeAll(); groupDrop.toggle() }}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+          className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
             groupBy
-              ? 'bg-accent text-primary hover:bg-accent'
+              ? 'text-primary bg-primary/10 hover:bg-primary/15'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
         >
-          <Layers2 size={12} />
+          <Layers2 size={14} />
           Group
-          {groupName && <span className="text-primary font-semibold">{groupName}</span>}
+          {groupName && <span className="font-semibold">{groupName}</span>}
         </button>
       )}
 
@@ -278,16 +278,16 @@ export function FilterSortBar({
       <button
         ref={filterBtnRef}
         onClick={() => { closeAll(); filterDrop.toggle() }}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+        className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
           filters.length > 0
-            ? 'bg-accent text-primary hover:bg-accent'
+            ? 'text-primary bg-primary/10 hover:bg-primary/15'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
-        <ListFilter size={12} />
+        <ListFilter size={14} />
         Filter
         {filters.length > 0 && (
-          <span className="bg-primary/20 text-primary rounded px-1.5 text-[10px] font-semibold leading-4">
+          <span className="bg-primary text-primary-foreground rounded px-1.5 text-[10px] font-bold leading-4">
             {filters.length}
           </span>
         )}
@@ -297,23 +297,23 @@ export function FilterSortBar({
       <button
         ref={sortBtnRef}
         onClick={() => { closeAll(); sortDrop.toggle() }}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+        className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
           sortBy
-            ? 'bg-accent text-primary hover:bg-accent'
+            ? 'text-primary bg-primary/10 hover:bg-primary/15'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
-        <ArrowUpDown size={12} />
+        <ArrowUpDown size={14} />
         Sort
         {sortName && (
-          <span className="text-primary font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
+          <span className="font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
         )}
       </button>
 
       {hasActive && (
         <button
           onClick={() => { onFiltersChange([]); onSortChange(null, 'asc'); onGroupByChange?.(null); closeAll() }}
-          className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="px-2 h-8 text-xs text-muted-foreground hover:text-destructive transition-colors"
         >
           Clear
         </button>

@@ -189,17 +189,14 @@ export function TableView({ onGoToProjects }: TableViewProps) {
             className="overflow-hidden transition-all duration-200 ease-in-out"
             style={{ maxHeight: scrolled ? 0 : 200, opacity: scrolled ? 0 : 1 }}
           >
-            <div className="max-w-4xl mx-auto px-8 pt-6 pb-3">
-              {/* Back link */}
+            <div className="max-w-4xl mx-auto px-10 pt-7 pb-4">
               <button
                 onClick={onGoToProjects}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2"
+                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary transition-colors mb-3"
               >
-                <ChevronLeft size={12} />
+                <ChevronLeft size={13} />
                 Projects
               </button>
-
-              {/* Title row */}
               <ProjectTitleInput
                 value={collection.meta.name}
                 onSave={(name) => renameProject(name)}
@@ -208,7 +205,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
           </div>
 
           {/* Toolbar row */}
-          <div className="max-w-4xl mx-auto px-8 pb-3" style={{ paddingTop: scrolled ? 8 : 0 }}>
+          <div className="max-w-4xl mx-auto px-10 pb-2.5" style={{ paddingTop: scrolled ? 10 : 0 }}>
             {selectedIds.size > 0 ? (
               <BulkActionBar
                 count={selectedIds.size}
@@ -228,70 +225,66 @@ export function TableView({ onGoToProjects }: TableViewProps) {
               />
             ) : (
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    onClick={() => { if (!draft) setDraft({ name: '', description: '', imagePath: '', fields: {} }) }}
-                    disabled={!!draft}
-                  >
-                    + New
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  onClick={() => { if (!draft) setDraft({ name: '', description: '', imagePath: '', fields: {} }) }}
+                  disabled={!!draft}
+                  className="h-8 px-3 text-xs"
+                >
+                  + New
+                </Button>
 
-                <div className="w-px h-4 bg-border mx-1" />
+                <div className="w-px h-5 bg-border mx-0.5" />
 
-                <div className="flex items-center gap-1">
-                  <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
+                <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
+
+                <div className="w-px h-5 bg-border mx-0.5" />
+
+                <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
+
+                {(viewMode === 'catalogue' || viewMode === 'cards') && grouped && (
                   <>
-                    <div className="w-px h-4 bg-border mx-0.5" />
-                    <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
-                    {(viewMode === 'catalogue' || viewMode === 'cards') && grouped && (
-                      <>
-                        <div className="w-px h-4 bg-border mx-0.5" />
-                        <button
-                          onClick={() => setAllCollapsed((v) => v === true ? null : true)}
-                          title="Collapse all"
-                          className={`p-1.5 rounded transition-colors ${allCollapsed === true ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                        >
-                          <ChevronsUp size={14} />
-                        </button>
-                        <button
-                          onClick={() => setAllCollapsed((v) => v === false ? null : false)}
-                          title="Expand all"
-                          className={`p-1.5 rounded transition-colors ${allCollapsed === false ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                        >
-                          <ChevronsDown size={14} />
-                        </button>
-                      </>
-                    )}
+                    <div className="w-px h-5 bg-border mx-0.5" />
+                    <button
+                      onClick={() => setAllCollapsed((v) => v === true ? null : true)}
+                      title="Collapse all"
+                      className={`p-1.5 transition-colors ${allCollapsed === true ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      <ChevronsUp size={15} />
+                    </button>
+                    <button
+                      onClick={() => setAllCollapsed((v) => v === false ? null : false)}
+                      title="Expand all"
+                      className={`p-1.5 transition-colors ${allCollapsed === false ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      <ChevronsDown size={15} />
+                    </button>
                   </>
-                </div>
+                )}
 
-                <div className="w-px h-4 bg-border mx-1" />
+                <div className="w-px h-5 bg-border mx-0.5 ml-auto" />
 
-                <div className="ml-auto">
-                  <FilterSortBar
-                    bare
-                    sortFields={sortFields}
-                    filterFields={filterFields}
-                    schemaFields={fields}
-                    sortBy={tableState.sortBy}
-                    sortDir={tableState.sortDir}
-                    onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
-                    filters={tableState.filters}
-                    onFiltersChange={(f) => setTableState({ filters: f })}
-                    groupBy={groupBy}
-                    onGroupByChange={(id) => { setGroupBy(id); setAllCollapsed(null) }}
-                    groupableFields={groupableFields}
-                  />
-                </div>
+                <FilterSortBar
+                  bare
+                  sortFields={sortFields}
+                  filterFields={filterFields}
+                  schemaFields={fields}
+                  sortBy={tableState.sortBy}
+                  sortDir={tableState.sortDir}
+                  onSortChange={(s, d) => setTableState({ sortBy: s, sortDir: d })}
+                  filters={tableState.filters}
+                  onFiltersChange={(f) => setTableState({ filters: f })}
+                  groupBy={groupBy}
+                  onGroupByChange={(id) => { setGroupBy(id); setAllCollapsed(null) }}
+                  groupableFields={groupableFields}
+                />
               </div>
             )}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={(e) => setScrolled((e.currentTarget as HTMLDivElement).scrollTop > 24)}>
-          <div className="max-w-4xl mx-auto px-8">
+          <div className="max-w-4xl mx-auto px-10">
 
             {/* ── Draft new item row (sticky) ── */}
             {draft && (
@@ -1406,8 +1399,8 @@ function ViewModeToggle({ mode, onChange }: {
     <button
       onClick={() => onChange(m)}
       title={label}
-      className={`flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium transition-colors ${
-        mode === m ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+      className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
+        mode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
       }`}
     >
       {icon}
@@ -1417,11 +1410,11 @@ function ViewModeToggle({ mode, onChange }: {
 
   return (
     <div className="flex items-center border border-border overflow-hidden">
-      {btn('catalogue', 'Properties', <SlidersHorizontal size={13} />)}
-      <div className="w-px h-4 bg-border" />
-      {btn('cards', 'Images', <Image size={13} />)}
-      <div className="w-px h-4 bg-border" />
-      {btn('focus', 'Text', <PenLine size={13} />)}
+      {btn('catalogue', 'Properties', <SlidersHorizontal size={14} />)}
+      <div className="w-px h-5 bg-border" />
+      {btn('cards', 'Images', <Image size={14} />)}
+      <div className="w-px h-5 bg-border" />
+      {btn('focus', 'Text', <PenLine size={14} />)}
     </div>
   )
 }
