@@ -22,7 +22,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useCollectionStore } from '../../store/collectionStore'
 import { FilterSortBar } from '../shared/FilterSortBar'
 import { applyFilters, applySort } from '../shared/filterSort'
-import { optionStyle, OPTION_COLORS, COLOR_KEYS } from '../shared/optionColors'
+import { optionStyle, COLOR_KEYS } from '../shared/optionColors'
 import type { Item, Field, Collection } from '../../types/collection'
 
 // ─── Top-level view ──────────────────────────────────────────────────────────
@@ -43,6 +43,8 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   const [groupBy, setGroupBy] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overGroup, setOverGroup] = useState<string | null>(null)
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
+  const [wide, setWide] = useState(false)
 
   const toggleSelect = (id: string) => setSelectedIds((prev) => {
     const next = new Set(prev)
@@ -72,6 +74,8 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   }, [viewMode, scrollToId])
 
   const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 1.75]
+  const CARD_COLS: Record<number, string> = { 0.75: 'grid-cols-10', 1: 'grid-cols-8', 1.25: 'grid-cols-6', 1.5: 'grid-cols-4', 1.75: 'grid-cols-3' }
+  const cardCols = CARD_COLS[zoom] ?? 'grid-cols-8'
 
   const tableState = collection?.views.table
   const schema = collection?.schema
@@ -204,7 +208,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
             </div>
           </div>
 
-          {/* Toolbar row */}
+          {/* Primary toolbar */}
           <div className="max-w-4xl mx-auto px-10 pb-2.5" style={{ paddingTop: scrolled ? 10 : 0 }}>
             {selectedIds.size > 0 ? (
               <BulkActionBar
@@ -233,37 +237,9 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                 >
                   + New
                 </Button>
-
                 <div className="w-px h-5 bg-border mx-0.5" />
-
                 <ViewModeToggle mode={viewMode} onChange={(m) => setViewMode(m)} />
-
-                <div className="w-px h-5 bg-border mx-0.5" />
-
-                <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
-
-                {(viewMode === 'catalogue' || viewMode === 'cards') && grouped && (
-                  <>
-                    <div className="w-px h-5 bg-border mx-0.5" />
-                    <button
-                      onClick={() => setAllCollapsed((v) => v === true ? null : true)}
-                      title="Collapse all"
-                      className={`p-1.5 transition-colors ${allCollapsed === true ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                      <ChevronsUp size={15} />
-                    </button>
-                    <button
-                      onClick={() => setAllCollapsed((v) => v === false ? null : false)}
-                      title="Expand all"
-                      className={`p-1.5 transition-colors ${allCollapsed === false ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                      <ChevronsDown size={15} />
-                    </button>
-                  </>
-                )}
-
                 <div className="w-px h-5 bg-border mx-0.5 ml-auto" />
-
                 <FilterSortBar
                   bare
                   sortFields={sortFields}
@@ -281,10 +257,45 @@ export function TableView({ onGoToProjects }: TableViewProps) {
               </div>
             )}
           </div>
+
+          {/* Secondary toolbar */}
+          <div className="border-t border-border/60 max-w-4xl mx-auto px-10 py-1 flex items-center gap-1">
+            <ZoomControl zoom={zoom} steps={ZOOM_STEPS} onChange={setZoom} />
+            <div className="w-px h-4 bg-border mx-1" />
+            <button
+              onClick={() => setWide((v) => !v)}
+              title={wide ? 'Narrow layout' : 'Wide layout'}
+              className={`p-1.5 transition-colors ${wide ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <ArrowLeftRight size={14} />
+            </button>
+            {(viewMode === 'catalogue' || viewMode === 'cards') && grouped && (
+              <>
+                <div className="w-px h-4 bg-border mx-1" />
+                <button
+                  onClick={() => setAllCollapsed((v) => v === true ? null : true)}
+                  title="Collapse all"
+                  className={`p-1.5 transition-colors ${allCollapsed === true ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <ChevronsUp size={14} />
+                </button>
+                <button
+                  onClick={() => setAllCollapsed((v) => v === false ? null : false)}
+                  title="Expand all"
+                  className={`p-1.5 transition-colors ${allCollapsed === false ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  <ChevronsDown size={14} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={(e) => setScrolled((e.currentTarget as HTMLDivElement).scrollTop > 24)}>
-          <div className="max-w-4xl mx-auto px-10">
+        <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={(e) => {
+            const top = (e.currentTarget as HTMLDivElement).scrollTop
+            setScrolled((prev) => prev ? top > 0 : top > 24)
+          }}>
+          <div className={`${wide ? 'max-w-full' : 'max-w-4xl'} mx-auto px-10 transition-all duration-200`}>
 
             {/* ── Draft new item row (sticky) ── */}
             {draft && (
@@ -310,7 +321,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
             {/* ── Content ── */}
             {viewMode === 'cards' ? (
-              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
+              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`}>
                 {grouped ? (
                   grouped.map(({ key, items }) => (
                     <CardGroupSection
@@ -320,12 +331,15 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                       groupField={groupField}
                       collapsedOverride={allCollapsed}
                       onGoToProperties={goToProperties}
+                      cardCols={cardCols}
+                      showLabels={zoom > 0.75}
+                      onOpenPanel={setSelectedImageId}
                     />
                   ))
                 ) : (
-                  <div className="grid grid-cols-8 gap-3">
+                  <div className={`grid ${cardCols} gap-3`}>
                     {collection.items.map((item) => (
-                      <ImageCard key={item.id} item={item} onGoToProperties={goToProperties} />
+                      <ImageCard key={item.id} item={item} onGoToProperties={goToProperties} showLabels={zoom > 0.75} onOpenPanel={setSelectedImageId} />
                     ))}
                   </div>
                 )}
@@ -339,6 +353,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                       groupKey={key}
                       items={items}
                       collapsedOverride={allCollapsed}
+                      groupField={groupField}
                       onUpdate={(id, patch) => updateItem(id, patch)}
                     />
                   ))
@@ -404,6 +419,13 @@ export function TableView({ onGoToProjects }: TableViewProps) {
           </div>
         )}
       </DragOverlay>
+
+      {selectedImageId && (
+        <ImageDetailPanel
+          itemId={selectedImageId}
+          onClose={() => setSelectedImageId(null)}
+        />
+      )}
     </DndContext>
   )
 }
@@ -435,7 +457,7 @@ function GroupSection({
       setCollapsed(collapsedOverride)
     }
   }, [collapsedOverride])
-  const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null)
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null)
   const chipRef = useRef<HTMLButtonElement>(null)
 
   const isEditableGroup = groupField && groupKey !== '(none)'
@@ -444,31 +466,23 @@ function GroupSection({
   const handleChipClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!isEditableGroup || !chipRef.current) return
-    setPopoverAnchor(chipRef.current.getBoundingClientRect())
+    const r = chipRef.current.getBoundingClientRect()
+    setPopoverPos({ top: r.bottom + 6, left: r.left })
   }
 
-  const handleSaveOption = ({ name: newName, colorKey: newColorKey }: { name: string; colorKey: string }) => {
+  const handleRenameOption = (oldName: string, newName: string) => {
     if (!groupField || !collection) return
-    const oldName = groupKey
-    let newOptions = groupField.options.map((o) => (o === oldName ? newName : o))
+    const newOptions = groupField.options.map((o) => (o === oldName ? newName : o))
     const newColors = { ...(groupField.optionColors ?? {}) }
-    if (newName !== oldName) {
-      if (newColors[oldName]) { newColors[newName] = newColors[oldName]; delete newColors[oldName] }
+    const newDescs = { ...(groupField.optionDescriptions ?? {}) }
+    if (newColors[oldName]) { newColors[newName] = newColors[oldName]; delete newColors[oldName] }
+    if (newDescs[oldName]) { newDescs[newName] = newDescs[oldName]; delete newDescs[oldName] }
+    updateField(groupField.id, { options: newOptions, optionColors: newColors, optionDescriptions: newDescs })
+    for (const item of collection.items) {
+      const val = item.fields[groupField.id]
+      if (val === oldName) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: newName } })
+      else if (Array.isArray(val) && val.includes(oldName)) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: val.map((v) => (v === oldName ? newName : v)) } })
     }
-    newColors[newName] = newColorKey
-    updateField(groupField.id, { options: newOptions, optionColors: newColors })
-
-    if (newName !== oldName) {
-      for (const item of collection.items) {
-        const val = item.fields[groupField.id]
-        if (val === oldName) {
-          updateItem(item.id, { fields: { ...item.fields, [groupField.id]: newName } })
-        } else if (Array.isArray(val) && val.includes(oldName)) {
-          updateItem(item.id, { fields: { ...item.fields, [groupField.id]: val.map((v) => (v === oldName ? newName : v)) } })
-        }
-      }
-    }
-    setPopoverAnchor(null)
   }
 
   const handleDeleteOption = () => {
@@ -476,17 +490,15 @@ function GroupSection({
     const oldName = groupKey
     const newOptions = groupField.options.filter((o) => o !== oldName)
     const newColors = { ...(groupField.optionColors ?? {}) }
-    delete newColors[oldName]
-    updateField(groupField.id, { options: newOptions, optionColors: newColors })
+    const newDescs = { ...(groupField.optionDescriptions ?? {}) }
+    delete newColors[oldName]; delete newDescs[oldName]
+    updateField(groupField.id, { options: newOptions, optionColors: newColors, optionDescriptions: newDescs })
     for (const item of collection.items) {
       const val = item.fields[groupField.id]
-      if (val === oldName) {
-        updateItem(item.id, { fields: { ...item.fields, [groupField.id]: null } })
-      } else if (Array.isArray(val) && val.includes(oldName)) {
-        updateItem(item.id, { fields: { ...item.fields, [groupField.id]: val.filter((v) => v !== oldName) } })
-      }
+      if (val === oldName) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: null } })
+      else if (Array.isArray(val) && val.includes(oldName)) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: val.filter((v) => v !== oldName) } })
     }
-    setPopoverAnchor(null)
+    setPopoverPos(null)
   }
 
   return (
@@ -523,6 +535,10 @@ function GroupSection({
         <span className="text-sm text-muted-foreground">{items.length}</span>
       </div>
 
+      {groupField?.optionDescriptions?.[groupKey] && !collapsed && (
+        <p className="text-sm text-muted-foreground px-2 pb-2 -mt-1">{groupField.optionDescriptions[groupKey]}</p>
+      )}
+
       {/* Cards */}
       {!collapsed && (
         <div className="flex flex-col gap-2">
@@ -549,108 +565,20 @@ function GroupSection({
         </div>
       )}
 
-      {/* Category edit popover */}
-      {popoverAnchor && isEditableGroup && groupField && (
-        <CategoryPopover
-          option={groupKey}
+      {/* Option edit popover */}
+      {popoverPos && isEditableGroup && groupField && createPortal(
+        <OptionEditSubPopover
+          opt={groupKey}
           field={groupField}
-          anchor={popoverAnchor}
-          onSave={handleSaveOption}
+          pos={popoverPos}
+          onClose={() => setPopoverPos(null)}
+          onRename={handleRenameOption}
           onDelete={handleDeleteOption}
-          onClose={() => setPopoverAnchor(null)}
-        />
+          onColor={(opt, colorKey) => updateField(groupField.id, { optionColors: { ...(groupField.optionColors ?? {}), [opt]: colorKey } })}
+        />,
+        document.body,
       )}
     </div>
-  )
-}
-
-// ─── Category popover ─────────────────────────────────────────────────────────
-
-function CategoryPopover({ option, field, anchor, onSave, onDelete, onClose }: {
-  option: string
-  field: Field
-  anchor: DOMRect
-  onSave: (patch: { name: string; colorKey: string }) => void
-  onDelete: () => void
-  onClose: () => void
-}) {
-  const [name, setName] = useState(option)
-  const [colorKey, setColorKey] = useState(field.optionColors?.[option] ?? 'gray')
-  const popRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) {
-        onSave({ name: name.trim() || option, colorKey })
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [name, colorKey, option, onSave, onClose])
-
-  const commit = () => {
-    onSave({ name: name.trim() || option, colorKey })
-    onClose()
-  }
-
-  const top = Math.min(anchor.bottom + 6, window.innerHeight - 240)
-  const left = Math.min(anchor.left, window.innerWidth - 230)
-
-  return createPortal(
-    <div
-      ref={popRef}
-      style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
-      className="bg-popover border border-border rounded-xl  p-3 flex flex-col gap-3"
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {/* Name */}
-      <input
-        ref={inputRef}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); commit() }
-          if (e.key === 'Escape') { onClose() }
-        }}
-        className="w-full border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary/50 bg-background text-foreground"
-      />
-
-      {/* Color */}
-      <div>
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Color</p>
-        <div className="flex flex-wrap gap-1.5">
-          {COLOR_KEYS.map((key) => {
-            const c = OPTION_COLORS[key]
-            return (
-              <button
-                key={key}
-                onClick={() => setColorKey(key)}
-                style={{
-                  background: c.bg,
-                  border: `2px solid ${colorKey === key ? c.text : c.border}`,
-                }}
-                className="w-6 h-6 rounded transition-transform hover:scale-110"
-                title={key}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Delete */}
-      <button
-        onClick={onDelete}
-        className="flex items-center gap-1.5 text-xs text-destructive/70 hover:text-destructive transition-colors text-left"
-      >
-        <Trash2 size={12} />
-        Delete option
-      </button>
-    </div>,
-    document.body,
   )
 }
 
@@ -818,7 +746,7 @@ function FieldEditPopover({ field, anchor, onClose, onRename, onDelete, value, o
     <div
       ref={popRef}
       style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
-      className="bg-popover border border-border rounded-xl  overflow-hidden"
+      className="bg-popover border border-border rounded-xl overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Rename + delete row */}
@@ -993,7 +921,9 @@ function OptionEditSubPopover({ opt, field, pos, onClose, onRename, onDelete, on
   onDelete: (opt: string) => void
   onColor: (opt: string, colorKey: string) => void
 }) {
+  const { updateField } = useCollectionStore()
   const [name, setName] = useState(opt)
+  const [description, setDescription] = useState(field.optionDescriptions?.[opt] ?? '')
   const popRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1039,6 +969,15 @@ function OptionEditSubPopover({ opt, field, pos, onClose, onRename, onDelete, on
           <Trash2 size={12} />
         </button>
       </div>
+
+      {/* Description */}
+      <textarea
+        value={description}
+        onChange={(e) => { setDescription(e.target.value); updateField(field.id, { optionDescriptions: { ...(field.optionDescriptions ?? {}), [opt]: e.target.value.trim() } }) }}
+        placeholder="Description (optional)"
+        rows={2}
+        className="w-full border border-border rounded-md px-2 py-1.5 text-xs bg-background text-foreground focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/50 resize-none leading-relaxed"
+      />
 
       {/* Color picker */}
       <div>
@@ -1088,14 +1027,17 @@ function AddFieldPopover({ anchor, onClose, onAdd }: {
     onAdd(name.trim(), type)
   }
 
-  const top = Math.min(anchor.bottom + 6, window.innerHeight - 260)
+  const estimatedHeight = 320
+  const top = anchor.bottom + 6 + estimatedHeight > window.innerHeight
+    ? anchor.top - estimatedHeight - 6
+    : anchor.bottom + 6
   const left = Math.min(anchor.left, window.innerWidth - 220)
 
   return createPortal(
     <div
       ref={popRef}
-      style={{ position: 'fixed', top, left, zIndex: 9999, width: 210 }}
-      className="bg-popover border border-border rounded-xl  p-3 flex flex-col gap-3"
+      style={{ position: 'fixed', top, left, zIndex: 9999, width: 220 }}
+      className="bg-popover border border-border rounded-xl p-3 flex flex-col gap-3"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <input
@@ -1368,15 +1310,13 @@ function ZoomControl({ zoom, steps, onChange }: { zoom: number; steps: number[];
       >
         <ZoomOut size={12} />
       </button>
-      {zoom !== 1 && (
-        <button
-          onClick={() => onChange(1)}
-          className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1 transition-colors"
-          title="Reset zoom"
-        >
-          {label}
-        </button>
-      )}
+      <button
+        onClick={() => onChange(1)}
+        className={`text-[10px] font-medium px-1 transition-colors ${zoom !== 1 ? 'text-primary hover:text-primary/70' : 'text-muted-foreground hover:text-foreground'}`}
+        title="Reset zoom"
+      >
+        {label}
+      </button>
       <button
         onClick={() => canInc && onChange(steps[idx + 1])}
         disabled={!canInc}
@@ -1423,10 +1363,11 @@ function ViewModeToggle({ mode, onChange }: {
 
 // ─── Focus group header ───────────────────────────────────────────────────────
 
-function FocusGroupSection({ groupKey, items, collapsedOverride, onUpdate }: {
+function FocusGroupSection({ groupKey, items, collapsedOverride, groupField, onUpdate }: {
   groupKey: string
   items: Item[]
   collapsedOverride?: boolean | null
+  groupField?: Field
   onUpdate: (id: string, patch: Partial<Item>) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -1447,6 +1388,9 @@ function FocusGroupSection({ groupKey, items, collapsedOverride, onUpdate }: {
         <span className="font-semibold text-base text-foreground">{groupKey}</span>
         <span className="text-sm text-muted-foreground">{items.length}</span>
       </div>
+      {groupField?.optionDescriptions?.[groupKey] && !collapsed && (
+        <p className="text-sm text-muted-foreground px-2 pb-2 -mt-1">{groupField.optionDescriptions[groupKey]}</p>
+      )}
       {!collapsed && items.map((item) => (
         <FocusItemCard key={item.id} item={item} onUpdate={(patch) => onUpdate(item.id, patch)} />
       ))}
@@ -1647,12 +1591,15 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
 
 // ─── Card group section ───────────────────────────────────────────────────────
 
-function CardGroupSection({ groupKey, items, groupField, collapsedOverride, onGoToProperties }: {
+function CardGroupSection({ groupKey, items, groupField, collapsedOverride, onGoToProperties, cardCols, showLabels, onOpenPanel }: {
   groupKey: string
   items: Item[]
   groupField?: Field
   collapsedOverride?: boolean | null
   onGoToProperties: (id: string) => void
+  cardCols: string
+  showLabels: boolean
+  onOpenPanel: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -1677,10 +1624,13 @@ function CardGroupSection({ groupKey, items, groupField, collapsedOverride, onGo
         )}
         <span className="text-sm text-muted-foreground">{items.length}</span>
       </div>
+      {groupField?.optionDescriptions?.[groupKey] && (
+        <p className="text-xs text-muted-foreground px-1 pb-2 -mt-1">{groupField.optionDescriptions[groupKey]}</p>
+      )}
       {!collapsed && (
-        <div className="grid grid-cols-8 gap-3">
+        <div className={`grid ${cardCols} gap-3`}>
           {items.map((item) => (
-            <ImageCard key={item.id} item={item} onGoToProperties={onGoToProperties} />
+            <ImageCard key={item.id} item={item} onGoToProperties={onGoToProperties} showLabels={showLabels} onOpenPanel={onOpenPanel} />
           ))}
         </div>
       )}
@@ -1690,14 +1640,15 @@ function CardGroupSection({ groupKey, items, groupField, collapsedOverride, onGo
 
 // ─── Image card (images view) ─────────────────────────────────────────────────
 
-function ImageCard({ item, onGoToProperties }: { item: Item; onGoToProperties: (id: string) => void }) {
+function ImageCard({ item, onGoToProperties: _onGoToProperties, showLabels: _showLabels = true, onOpenPanel }: {
+  item: Item
+  onGoToProperties: (id: string) => void
+  showLabels?: boolean
+  onOpenPanel: (id: string) => void
+}) {
   const { updateItem } = useCollectionStore()
-  const [noteOpen, setNoteOpen] = useState(false)
-  const [noteDraft, setNoteDraft] = useState(item.imageNote ?? '')
-  const noteAnchorRef = useRef<HTMLButtonElement>(null)
-  const [notePos, setNotePos] = useState<{ top: number; left: number } | null>(null)
 
-  const handleImageClick = () => {
+  const handlePlaceholderUpload = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
@@ -1711,82 +1662,162 @@ function ImageCard({ item, onGoToProperties }: { item: Item; onGoToProperties: (
     input.click()
   }
 
-  const openNote = () => {
-    if (!noteAnchorRef.current) return
-    const r = noteAnchorRef.current.getBoundingClientRect()
-    setNotePos({ top: r.bottom + 4, left: r.left })
-    setNoteDraft(item.imageNote ?? '')
-    setNoteOpen(true)
-  }
-
   return (
-    <div className="bg-card border border-transparent group transition-all hover:border-border">
+    <div className="group">
       {/* Image area */}
       <div
-        onClick={handleImageClick}
-        className={`aspect-square relative overflow-hidden cursor-pointer transition-all ${
-          item.imagePath ? 'hover:opacity-80' : 'bg-muted hover:bg-muted/80'
-        }`}
-        title={item.imagePath ? 'Click to replace image' : 'Click to upload image'}
+        className="aspect-square overflow-hidden cursor-pointer bg-muted hover:bg-muted/80 transition-colors"
+        onClick={() => item.imagePath ? onOpenPanel(item.id) : handlePlaceholderUpload()}
+        title={item.imagePath ? 'Click to view details' : 'Click to upload image'}
       >
         {item.imagePath ? (
           <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground select-none">
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground/50 select-none">
             <ImageUp size={18} />
-            <span className="text-[9px] font-medium tracking-wide uppercase">Image</span>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <div className="flex border-t border-border opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={() => onGoToProperties(item.id)}
-          title="View in Properties"
-          className="flex-1 flex items-center justify-center py-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border-r border-border"
-        >
-          <SlidersHorizontal size={14} />
-        </button>
-        <button
-          ref={noteAnchorRef}
-          onClick={openNote}
-          title="Add note"
-          className={`flex-1 flex items-center justify-center py-2 transition-colors hover:bg-muted/50 ${item.imageNote ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-        >
-          <MessageSquare size={14} fill={item.imageNote ? 'currentColor' : 'none'} />
-        </button>
-      </div>
-
-      {noteOpen && notePos && createPortal(
-        <div
-          style={{ position: 'fixed', top: notePos.top, left: notePos.left, width: 220, zIndex: 9999 }}
-          className="bg-popover border border-border"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-end px-2 pt-1.5">
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { updateItem(item.id, { imageNote: noteDraft }); setNoteOpen(false) }}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X size={12} />
-            </button>
-          </div>
-          <textarea
-            autoFocus
-            value={noteDraft}
-            rows={4}
-            onChange={(e) => setNoteDraft(e.target.value)}
-            onBlur={() => { updateItem(item.id, { imageNote: noteDraft }); setNoteOpen(false) }}
-            onKeyDown={(e) => { if (e.key === 'Escape') { updateItem(item.id, { imageNote: noteDraft }); setNoteOpen(false) } }}
-            placeholder="Add a note…"
-            className="w-full bg-transparent border-none outline-none text-xs text-foreground placeholder:text-muted-foreground resize-none leading-relaxed px-2 pb-2"
-          />
-        </div>,
-        document.body,
-      )}
+      <button
+        onClick={() => onOpenPanel(item.id)}
+        className="w-full flex items-center gap-1 px-1 pt-1 pb-1 hover:bg-muted/50 transition-colors rounded"
+        title="Open details"
+      >
+        <p className="flex-1 text-xs font-medium text-foreground truncate min-w-0 text-left">
+          {item.name || <span className="text-muted-foreground/60 italic">Untitled</span>}
+        </p>
+        <span className={`shrink-0 p-1 rounded transition-colors ${item.imageNote ? 'text-primary' : 'text-muted-foreground/30'}`}>
+          <MessageSquare size={11} fill={item.imageNote ? 'currentColor' : 'none'} />
+        </span>
+      </button>
     </div>
+  )
+}
+
+// ─── Image detail panel ───────────────────────────────────────────────────────
+
+function ImageDetailPanel({ itemId, onClose }: { itemId: string; onClose: () => void }) {
+  const { collection, updateItem } = useCollectionStore()
+  const item = collection?.items.find((i) => i.id === itemId)
+  const fields = collection?.schema.fields ?? []
+  const [noteDraft, setNoteDraft] = useState(item?.imageNote ?? '')
+
+  useEffect(() => {
+    setNoteDraft(item?.imageNote ?? '')
+  }, [itemId, item?.imageNote])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  if (!item) return null
+
+  const handleImageReplace = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => updateItem(item.id, { imagePath: reader.result as string })
+      reader.readAsDataURL(file)
+    }
+    input.click()
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-40" onClick={onClose}>
+      <div
+        className="absolute right-0 top-0 bottom-0 w-80 bg-background border-l border-border flex flex-col shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
+          <p className="text-xs font-medium text-muted-foreground">Details</p>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-0.5">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* Image */}
+          <div
+            className="aspect-square relative cursor-pointer group bg-muted"
+            onClick={handleImageReplace}
+            title="Click to replace image"
+          >
+            {item.imagePath ? (
+              <img src={item.imagePath} alt={item.name} className="w-full h-full object-contain" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ImageUp size={24} />
+                <span className="text-xs font-medium">Upload image</span>
+              </div>
+            )}
+            {item.imagePath && (
+              <div className="absolute inset-0 bg-background/80 flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-xs font-medium">
+                <ImageUp size={13} /> Replace
+              </div>
+            )}
+          </div>
+
+          {/* Name */}
+          <div className="px-4 pt-3 pb-2">
+            <InlineInput
+              value={item.name}
+              onSave={(v) => updateItem(item.id, { name: v })}
+              placeholder="Item name"
+              className="text-sm font-semibold"
+            />
+          </div>
+
+          {/* Description */}
+          {item.description && (
+            <div className="px-4 pb-3">
+              <p className="text-xs text-muted-foreground line-clamp-3">{item.description}</p>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="mx-4 mb-3 border-t border-border pt-3">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Notes</p>
+            <textarea
+              value={noteDraft}
+              rows={4}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              onBlur={() => updateItem(item.id, { imageNote: noteDraft })}
+              placeholder="Add a note…"
+              className="w-full bg-muted/30 border border-border rounded px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground resize-none leading-relaxed outline-none focus:border-primary/50 focus:bg-background transition-colors"
+            />
+          </div>
+
+          {/* Properties */}
+          {fields.length > 0 && (
+            <div className="mx-4 mb-4 border-t border-border pt-3">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Properties</p>
+              <div className="flex flex-col gap-3">
+                {fields.map((field) => (
+                  <div key={field.id}>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{field.name}</p>
+                    <FieldChip
+                      field={field}
+                      value={item.fields[field.id] ?? null}
+                      onChange={(v) => updateItem(item.id, { fields: { ...item.fields, [field.id]: v } })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

@@ -6,6 +6,7 @@ export interface Field {
   type: FieldType
   options: string[]
   optionColors?: Record<string, string>   // option value → color key
+  optionDescriptions?: Record<string, string>  // option value → description
 }
 
 export interface CanvasPosition {

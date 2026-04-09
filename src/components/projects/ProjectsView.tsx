@@ -169,9 +169,9 @@ export function ProjectsView({ onOpen }: ProjectsViewProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/60 border-b border-border">
+                      <th className="px-3 py-3 w-10" />
                       <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Items</th>
-                      <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fields</th>
                       <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Updated</th>
                       <th className="px-5 py-3" />
                     </tr>
@@ -280,9 +280,20 @@ function TableRow({ project, onOpen, onDelete, onDuplicate }: {
     setExportOpen(true)
   }
 
+  const previewItem = project.items.find((it) => it.imagePath)
+
   return (
-    <tr className="group bg-card hover:bg-accent/30 transition-colors">
-      <td className="px-5 py-3.5">
+    <tr className="group bg-card hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => onOpen(project.meta.id)}>
+      <td className="px-3 py-2.5 w-10">
+        <div className="w-8 h-8 shrink-0 bg-muted overflow-hidden flex items-center justify-center">
+          {previewItem ? (
+            <img src={previewItem.imagePath} alt="" className="w-full h-full object-contain" />
+          ) : (
+            <span className="text-xs font-semibold text-muted-foreground">{project.meta.name.charAt(0).toUpperCase()}</span>
+          )}
+        </div>
+      </td>
+      <td className="px-5 py-2.5 max-w-[240px]">
         <div className="flex items-center gap-2">
           {editing ? (
             <input
@@ -295,27 +306,21 @@ function TableRow({ project, onOpen, onDelete, onDuplicate }: {
                 if (e.key === 'Escape') { setNameDraft(project.meta.name); setEditing(false) }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="text-sm font-medium text-foreground bg-transparent border-b border-primary outline-none"
+              className="text-sm font-medium text-foreground bg-transparent border-b border-primary outline-none w-full"
             />
           ) : (
-            <button
-              onClick={() => onOpen(project.meta.id)}
-              className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer text-left"
-            >
-              {project.meta.name}
-            </button>
+            <span className="font-medium text-foreground truncate block">{project.meta.name}</span>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); setEditing((v) => !v) }}
-            className="p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary transition-all"
+            className="p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary transition-all shrink-0"
           >
             <Pencil size={12} />
           </button>
         </div>
       </td>
-      <td className="px-5 py-3.5 text-sm text-muted-foreground">{project.items.length}</td>
-      <td className="px-5 py-3.5 text-sm text-muted-foreground">{project.schema.fields.length}</td>
-      <td className="px-5 py-3.5 text-xs text-muted-foreground">{formatDate(project.meta.updatedAt)}</td>
+      <td className="px-5 py-2.5 text-sm text-muted-foreground">{project.items.length}</td>
+      <td className="px-5 py-2.5 text-xs text-muted-foreground">{formatDate(project.meta.updatedAt)}</td>
       <td className="px-5 py-3.5">
         <div className="flex items-center gap-1 justify-end">
           <ActionBtn ref={exportBtnRef} icon={<Download size={13} />} label="Export" onClick={openExport} />
