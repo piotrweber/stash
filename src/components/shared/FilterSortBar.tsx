@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ListFilter, ArrowUpDown, Layers2, ArrowUp, ArrowDown } from 'lucide-react'
+import { ListFilter, ArrowUpDown, Layers2, ArrowUp, ArrowDown, X } from 'lucide-react'
 import type { Filter, Field } from '../../types/collection'
 
 type Op = Filter['op']
@@ -262,13 +262,13 @@ export function FilterSortBar({
         <button
           ref={groupBtnRef}
           onClick={() => { closeAll(); groupDrop.toggle() }}
-          className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
+          className={`flex items-center gap-2 px-2.5 h-7 text-xs font-medium border rounded transition-colors ${
             groupBy
-              ? 'text-primary bg-primary/10 hover:bg-primary/15'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              ? 'text-primary border-primary bg-primary/5 hover:bg-primary/10'
+              : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'
           }`}
         >
-          <Layers2 size={14} />
+          <Layers2 size={13} />
           Group
           {groupName && <span className="font-semibold">{groupName}</span>}
         </button>
@@ -278,13 +278,13 @@ export function FilterSortBar({
       <button
         ref={filterBtnRef}
         onClick={() => { closeAll(); filterDrop.toggle() }}
-        className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
+        className={`flex items-center gap-2 px-2.5 h-7 text-xs font-medium border rounded transition-colors ${
           filters.length > 0
-            ? 'text-primary bg-primary/10 hover:bg-primary/15'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            ? 'text-primary border-primary bg-primary/5 hover:bg-primary/10'
+            : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'
         }`}
       >
-        <ListFilter size={14} />
+        <ListFilter size={13} />
         Filter
         {filters.length > 0 && (
           <span className="bg-primary text-primary-foreground rounded px-1.5 text-[10px] font-bold leading-4">
@@ -297,13 +297,13 @@ export function FilterSortBar({
       <button
         ref={sortBtnRef}
         onClick={() => { closeAll(); sortDrop.toggle() }}
-        className={`flex items-center gap-2 px-3 h-8 text-xs font-medium transition-colors ${
+        className={`flex items-center gap-2 px-2.5 h-7 text-xs font-medium border rounded transition-colors ${
           sortBy
-            ? 'text-primary bg-primary/10 hover:bg-primary/15'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            ? 'text-primary border-primary bg-primary/5 hover:bg-primary/10'
+            : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'
         }`}
       >
-        <ArrowUpDown size={14} />
+        <ArrowUpDown size={13} />
         Sort
         {sortName && (
           <span className="font-semibold">{sortName} {sortDir === 'asc' ? '↑' : '↓'}</span>
@@ -313,9 +313,10 @@ export function FilterSortBar({
       {hasActive && (
         <button
           onClick={() => { onFiltersChange([]); onSortChange(null, 'asc'); onGroupByChange?.(null); closeAll() }}
-          className="px-2 h-8 text-xs text-muted-foreground hover:text-destructive transition-colors"
+          className="p-1 border border-border rounded text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
+          title="Clear all"
         >
-          Clear
+          <X size={12} />
         </button>
       )}
 

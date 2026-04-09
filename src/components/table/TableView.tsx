@@ -265,9 +265,9 @@ export function TableView({ onGoToProjects }: TableViewProps) {
             <button
               onClick={() => setWide((v) => !v)}
               title={wide ? 'Narrow layout' : 'Wide layout'}
-              className={`p-1.5 transition-colors ${wide ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`p-1 border rounded transition-colors ${wide ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:border-border/80'}`}
             >
-              <ArrowLeftRight size={14} />
+              <ArrowLeftRight size={13} />
             </button>
             {(viewMode === 'catalogue' || viewMode === 'cards') && grouped && (
               <>
@@ -275,16 +275,16 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                 <button
                   onClick={() => setAllCollapsed((v) => v === true ? null : true)}
                   title="Collapse all"
-                  className={`p-1.5 transition-colors ${allCollapsed === true ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`p-1 border rounded transition-colors ${allCollapsed === true ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:border-border/80'}`}
                 >
-                  <ChevronsUp size={14} />
+                  <ChevronsUp size={13} />
                 </button>
                 <button
                   onClick={() => setAllCollapsed((v) => v === false ? null : false)}
                   title="Expand all"
-                  className={`p-1.5 transition-colors ${allCollapsed === false ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`p-1 border rounded transition-colors ${allCollapsed === false ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:border-border/80'}`}
                 >
-                  <ChevronsDown size={14} />
+                  <ChevronsDown size={13} />
                 </button>
               </>
             )}
@@ -321,7 +321,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
             {/* ── Content ── */}
             {viewMode === 'cards' ? (
-              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`}>
+              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
                 {grouped ? (
                   grouped.map(({ key, items }) => (
                     <CardGroupSection
@@ -345,7 +345,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                 )}
               </div>
             ) : viewMode === 'focus' ? (
-              <div className={`flex flex-col ${draft ? 'pb-8' : 'py-6'}`}>
+              <div className={`flex flex-col ${draft ? 'pb-8' : 'py-6'}`} style={{ zoom }}>
                 {grouped ? (
                   grouped.map(({ key, items }) => (
                     <FocusGroupSection
@@ -368,18 +368,19 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                 )}
               </div>
             ) : (
-              <div className={`${draft ? 'pb-8' : 'pt-4 pb-8'} flex flex-col gap-6`} style={{ zoom }}>
-                {grouped ? (
-                  <>
-                    {grouped.map(({ key, items }) => (
-                      <GroupSection
+              <div className={`${draft ? 'pb-8' : 'pt-2 pb-8'}`} style={{ zoom }}>
+                <table className="w-full border-collapse">
+                  {!grouped && <PropertiesTableHead fields={fields} />}
+                  {grouped ? (
+                    grouped.map(({ key, items: groupItems }) => (
+                      <TableGroupSection
                         key={key}
                         groupKey={key}
-                        items={items}
+                        items={groupItems}
                         fields={fields}
                         isOver={overGroup === key}
                         isDragging={!!draggingId}
-                        onUpdate={(id, patch) => updateItem(id, patch)}
+                        onUpdate={(id: string, patch: Partial<Item>) => updateItem(id, patch)}
                         groupField={groupField}
                         collection={collection}
                         collapsedOverride={allCollapsed}
@@ -387,24 +388,23 @@ export function TableView({ onGoToProjects }: TableViewProps) {
                         onToggleSelect={toggleSelect}
                         onGoToText={goToText}
                       />
-                    ))}
-                  </>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {processedItems.map((item) => (
-                      <ItemCard
-                        key={item.id}
-                        item={item}
-                        fields={fields}
-                        draggable={false}
-                        selected={selectedIds.has(item.id)}
-                        onToggleSelect={() => toggleSelect(item.id)}
-                        onUpdate={(patch) => updateItem(item.id, patch)}
-                        onGoToText={goToText}
-                      />
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <tbody>
+                      {processedItems.map((item) => (
+                        <PropertiesRow
+                          key={item.id}
+                          item={item}
+                          fields={fields}
+                          selected={selectedIds.has(item.id)}
+                          onToggleSelect={() => toggleSelect(item.id)}
+                          onUpdate={(patch: Partial<Item>) => updateItem(item.id, patch)}
+                          onGoToText={goToText}
+                        />
+                      ))}
+                    </tbody>
+                  )}
+                </table>
               </div>
             )}
 
@@ -430,9 +430,153 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   )
 }
 
-// ─── Group section ────────────────────────────────────────────────────────────
+// ─── Properties table components ─────────────────────────────────────────────
 
-function GroupSection({
+function PropertiesTableHead({ fields }: { fields: Field[] }) {
+  const { addField } = useCollectionStore()
+  const [addOpen, setAddOpen] = useState(false)
+  const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
+  const addBtnRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <thead>
+      <tr className="border-b border-border bg-muted/40">
+        <th className="w-8 px-2 py-2" />
+        <th className="w-10 px-2 py-2" />
+        <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide min-w-[160px]">Name</th>
+        {fields.map((f) => (
+          <FieldHeaderCell key={f.id} field={f} />
+        ))}
+        <th className="px-2 py-2">
+          <button
+            ref={addBtnRef}
+            onClick={() => {
+              if (!addBtnRef.current) return
+              setAddAnchor(addBtnRef.current.getBoundingClientRect())
+              setAddOpen(true)
+            }}
+            className="text-[10px] font-medium text-muted-foreground/50 hover:text-primary transition-colors whitespace-nowrap"
+          >
+            + Field
+          </button>
+          {addOpen && addAnchor && (
+            <AddFieldPopover
+              anchor={addAnchor}
+              onClose={() => { setAddOpen(false); setAddAnchor(null) }}
+              onAdd={(name, type) => { addField({ name, type, options: [] }); setAddOpen(false); setAddAnchor(null) }}
+            />
+          )}
+        </th>
+      </tr>
+    </thead>
+  )
+}
+
+function FieldHeaderCell({ field }: { field: Field }) {
+  const { updateField, deleteField } = useCollectionStore()
+  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const ref = useRef<HTMLTableCellElement>(null)
+
+  return (
+    <th
+      ref={ref}
+      className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide cursor-pointer hover:bg-muted/60 transition-colors min-w-[120px]"
+      onClick={() => { if (ref.current) setAnchor(ref.current.getBoundingClientRect()) }}
+    >
+      {field.name}
+      {anchor && (
+        <FieldEditPopover
+          field={field}
+          anchor={anchor}
+          onClose={() => setAnchor(null)}
+          onRename={(name) => updateField(field.id, { name })}
+          onDelete={() => { deleteField(field.id); setAnchor(null) }}
+          value={null}
+          onValueChange={() => {}}
+        />
+      )}
+    </th>
+  )
+}
+
+function PropertiesCell({ field, value, onChange }: {
+  field: Field
+  value: Item['fields'][string]
+  onChange: (v: Item['fields'][string]) => void
+}) {
+  const { updateField, deleteField } = useCollectionStore()
+  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const ref = useRef<HTMLTableCellElement>(null)
+
+  return (
+    <td
+      ref={ref}
+      className="px-3 py-2 min-w-[120px] cursor-pointer hover:bg-muted/30 transition-colors"
+      onClick={() => { if (ref.current) setAnchor(ref.current.getBoundingClientRect()) }}
+    >
+      <FieldChip field={field} value={value} onChange={onChange} />
+      {anchor && (
+        <FieldEditPopover
+          field={field}
+          anchor={anchor}
+          onClose={() => setAnchor(null)}
+          onRename={(name) => updateField(field.id, { name })}
+          onDelete={() => { deleteField(field.id); setAnchor(null) }}
+          value={value}
+          onValueChange={onChange}
+        />
+      )}
+    </td>
+  )
+}
+
+function PropertiesRow({ item, fields, selected, onToggleSelect, onUpdate, onGoToText }: {
+  item: Item
+  fields: Field[]
+  selected?: boolean
+  onToggleSelect?: () => void
+  onUpdate: (patch: Partial<Item>) => void
+  onGoToText: (id: string) => void
+}) {
+  return (
+    <tr
+      id={`item-${item.id}`}
+      className={`border-b border-border/60 transition-colors ${selected ? 'bg-accent/20' : 'hover:bg-muted/30'}`}
+    >
+      <td className="w-8 px-2 py-2">
+        <Checkbox checked={!!selected} onCheckedChange={() => onToggleSelect?.()} onClick={(e) => e.stopPropagation()} />
+      </td>
+      <td className="w-10 px-1 py-1.5">
+        <ImageCell item={item} onUpdate={onUpdate} size="sm" />
+      </td>
+      <td className="px-3 py-2 min-w-[160px]">
+        <div onClick={(e) => e.stopPropagation()}>
+          <InlineInput value={item.name} onSave={(v) => onUpdate({ name: v })} className="text-sm font-medium text-foreground" />
+        </div>
+        {item.description && (
+          <div
+            onClick={() => onGoToText(item.id)}
+            title={item.description}
+            className="text-xs text-muted-foreground truncate max-w-[200px] cursor-pointer hover:text-primary transition-colors"
+          >
+            {item.description}
+          </div>
+        )}
+      </td>
+      {fields.map((field) => (
+        <PropertiesCell
+          key={field.id}
+          field={field}
+          value={item.fields[field.id] ?? null}
+          onChange={(v: Item['fields'][string]) => onUpdate({ fields: { ...item.fields, [field.id]: v } })}
+        />
+      ))}
+      <td />
+    </tr>
+  )
+}
+
+function TableGroupSection({
   groupKey, items, fields, isOver, isDragging, onUpdate, groupField, collection, collapsedOverride, selectedIds, onToggleSelect, onGoToText,
 }: {
   groupKey: string
@@ -451,14 +595,12 @@ function GroupSection({
   const { updateField, updateItem } = useCollectionStore()
   const { setNodeRef } = useDroppable({ id: groupKey })
   const [collapsed, setCollapsed] = useState(false)
-
-  useEffect(() => {
-    if (collapsedOverride !== null && collapsedOverride !== undefined) {
-      setCollapsed(collapsedOverride)
-    }
-  }, [collapsedOverride])
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null)
   const chipRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (collapsedOverride !== null && collapsedOverride !== undefined) setCollapsed(collapsedOverride)
+  }, [collapsedOverride])
 
   const isEditableGroup = groupField && groupKey !== '(none)'
   const chipStyle = isEditableGroup ? optionStyle(groupField.optionColors?.[groupKey]) : null
@@ -487,85 +629,94 @@ function GroupSection({
 
   const handleDeleteOption = () => {
     if (!groupField || !collection) return
-    const oldName = groupKey
-    const newOptions = groupField.options.filter((o) => o !== oldName)
+    const newOptions = groupField.options.filter((o) => o !== groupKey)
     const newColors = { ...(groupField.optionColors ?? {}) }
     const newDescs = { ...(groupField.optionDescriptions ?? {}) }
-    delete newColors[oldName]; delete newDescs[oldName]
+    delete newColors[groupKey]; delete newDescs[groupKey]
     updateField(groupField.id, { options: newOptions, optionColors: newColors, optionDescriptions: newDescs })
     for (const item of collection.items) {
       const val = item.fields[groupField.id]
-      if (val === oldName) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: null } })
-      else if (Array.isArray(val) && val.includes(oldName)) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: val.filter((v) => v !== oldName) } })
+      if (val === groupKey) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: null } })
+      else if (Array.isArray(val) && val.includes(groupKey)) updateItem(item.id, { fields: { ...item.fields, [groupField.id]: val.filter((v) => v !== groupKey) } })
     }
     setPopoverPos(null)
   }
 
+  const colSpan = fields.length + 4
+
   return (
-    <div
-      ref={setNodeRef}
-      className={`rounded-xl transition-all duration-150 ${
-        isDragging
-          ? isOver
-            ? 'ring-2 ring-primary bg-accent/60 '
-            : 'ring-1 ring-dashed ring-border'
-          : ''
-      }`}
-    >
-      {/* Group header */}
-      <div
-        className="flex items-center gap-2.5 px-2 py-2 mb-1 rounded-lg cursor-pointer select-none hover:bg-muted/50 transition-colors"
+    <tbody ref={setNodeRef} className={isDragging ? isOver ? 'ring-2 ring-primary' : '' : ''}>
+      {/* Group header row */}
+      <tr
+        className="cursor-pointer select-none hover:bg-muted/40 transition-colors"
         onClick={() => setCollapsed((v) => !v)}
       >
-        <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-
-        {isEditableGroup && chipStyle ? (
-          <button
-            ref={chipRef}
-            onClick={(e) => { e.stopPropagation(); handleChipClick(e) }}
-            style={{ color: chipStyle.color }}
-            className="font-semibold text-base hover:opacity-70 transition-opacity"
-          >
-            {groupKey}
-          </button>
-        ) : (
-          <span className="font-semibold text-base text-foreground">{groupKey}</span>
-        )}
-
-        <span className="text-sm text-muted-foreground">{items.length}</span>
-      </div>
-
+        <td colSpan={colSpan} className="pt-4 pb-1 px-2">
+          <div className="flex items-center gap-2.5">
+            <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+            {isEditableGroup && chipStyle ? (
+              <button
+                ref={chipRef}
+                onClick={(e) => { e.stopPropagation(); handleChipClick(e) }}
+                style={{ color: chipStyle.color }}
+                className="font-semibold text-base hover:opacity-70 transition-opacity"
+              >
+                {groupKey}
+              </button>
+            ) : (
+              <span className="font-semibold text-base text-foreground">{groupKey}</span>
+            )}
+            <span className="text-sm text-muted-foreground">{items.length}</span>
+          </div>
+        </td>
+      </tr>
+      {/* Description row */}
       {groupField?.optionDescriptions?.[groupKey] && !collapsed && (
-        <p className="text-sm text-muted-foreground px-2 pb-2 -mt-1">{groupField.optionDescriptions[groupKey]}</p>
+        <tr>
+          <td colSpan={colSpan} className="px-7 pb-2 text-sm text-muted-foreground">
+            {groupField.optionDescriptions[groupKey]}
+          </td>
+        </tr>
       )}
-
-      {/* Cards */}
+      {/* Column headers */}
       {!collapsed && (
-        <div className="flex flex-col gap-2">
-          {items.length === 0 ? (
-            <div className={`h-14 rounded-lg border-2 border-dashed flex items-center justify-center text-xs transition-colors ${
-              isOver ? 'border-primary text-primary' : 'border-border text-muted-foreground/50'
-            }`}>
-              Drop here
-            </div>
-          ) : (
-            items.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                fields={fields}
-                draggable
-                selected={selectedIds.has(item.id)}
-                onToggleSelect={() => onToggleSelect(item.id)}
-                onUpdate={(patch) => onUpdate(item.id, patch)}
-                onGoToText={onGoToText}
-              />
-            ))
-          )}
-        </div>
+        <tr className="border-b border-border/60 bg-muted/20">
+          <th className="w-8 px-2 py-1.5" />
+          <th className="w-10 px-2 py-1.5" />
+          <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Name</th>
+          {fields.map((f) => (
+            <th key={f.id} className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{f.name}</th>
+          ))}
+          <th />
+        </tr>
+      )}
+      {/* Items */}
+      {!collapsed && (
+        items.length === 0 ? (
+          <tr>
+            <td colSpan={colSpan}>
+              <div className={`h-10 flex items-center justify-center text-xs transition-colors ${
+                isOver ? 'text-primary' : 'text-muted-foreground/50'
+              }`}>
+                Drop here
+              </div>
+            </td>
+          </tr>
+        ) : (
+          items.map((item) => (
+            <PropertiesRow
+              key={item.id}
+              item={item}
+              fields={fields}
+              selected={selectedIds.has(item.id)}
+              onToggleSelect={() => onToggleSelect(item.id)}
+              onUpdate={(patch) => onUpdate(item.id, patch)}
+              onGoToText={onGoToText}
+            />
+          ))
+        )
       )}
 
-      {/* Option edit popover */}
       {popoverPos && isEditableGroup && groupField && createPortal(
         <OptionEditSubPopover
           opt={groupKey}
@@ -578,7 +729,7 @@ function GroupSection({
         />,
         document.body,
       )}
-    </div>
+    </tbody>
   )
 }
 
@@ -1352,9 +1503,9 @@ function ViewModeToggle({ mode, onChange }: {
     <div className="flex items-center border border-border overflow-hidden">
       {btn('catalogue', 'Properties', <SlidersHorizontal size={14} />)}
       <div className="w-px h-5 bg-border" />
-      {btn('cards', 'Images', <Image size={14} />)}
-      <div className="w-px h-5 bg-border" />
       {btn('focus', 'Text', <PenLine size={14} />)}
+      <div className="w-px h-5 bg-border" />
+      {btn('cards', 'Images', <Image size={14} />)}
     </div>
   )
 }
