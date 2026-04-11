@@ -582,7 +582,7 @@ export const useCollectionStore = create<CollectionStore>()(
     const id = nanoid()
     set((s) => {
       if (!s.collection) return s
-      const note: Note = { id, name, content: '# Untitled\n' }
+      const note: Note = { id, name, content: '# Untitled\n', createdAt: new Date().toISOString() }
       const updated = { ...s.collection, notes: [...(s.collection.notes ?? []), note] }
       return sync(s, touch(updated))
     })

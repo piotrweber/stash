@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal, Eye,
+  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal, Eye, FileUp,
 } from 'lucide-react'
 import {
   DndContext,
@@ -661,7 +661,7 @@ function TableGroupSection({
         className="cursor-pointer select-none hover:bg-muted/40 transition-colors"
         onClick={() => setCollapsed((v) => !v)}
       >
-        <td colSpan={colSpan} className="pt-4 pb-1 px-2">
+        <td colSpan={colSpan} className="pt-8 pb-1 px-2">
           <div className="flex items-center gap-2.5">
             <ChevronDown size={14} className={`shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
             {isEditableGroup && chipStyle ? (
@@ -1865,9 +1865,10 @@ function noteTitle(content: string): string {
   return first.replace(/^#+\s*/, '').trim() || 'Untitled'
 }
 
-function NoteEditor({ value, editing, onChange, onBlur }: {
+function NoteEditor({ value, editing, fontSize, onChange, onBlur }: {
   value: string
   editing: boolean
+  fontSize: number
   onChange: (v: string) => void
   onBlur: () => void
 }) {
@@ -1881,7 +1882,8 @@ function NoteEditor({ value, editing, onChange, onBlur }: {
     return (
       <textarea
         ref={textareaRef}
-        className="flex-1 resize-none bg-transparent px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none font-mono leading-relaxed w-full"
+        className="flex-1 resize-none bg-transparent pl-3 pr-12 py-2 text-foreground placeholder:text-muted-foreground/50 outline-none font-mono leading-relaxed w-full"
+        style={{ fontSize }}
         placeholder="Write notes here… (markdown supported)"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1891,15 +1893,13 @@ function NoteEditor({ value, editing, onChange, onBlur }: {
   }
 
   return (
-    <div
-      className="flex-1 overflow-y-auto px-3 py-2 cursor-text min-h-0"
-    >
+    <div className="flex-1 overflow-y-auto pl-3 pr-12 py-2 cursor-text min-h-0" style={{ fontSize }}>
       {value ? (
-        <div className="prose prose-xs max-w-none text-xs text-foreground [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mb-1 [&_h2]:text-xs [&_h2]:font-bold [&_h2]:mb-1 [&_h3]:text-xs [&_h3]:font-semibold [&_p]:mb-1.5 [&_p]:leading-relaxed [&_ul]:pl-4 [&_ul]:mb-1.5 [&_ol]:pl-4 [&_ol]:mb-1.5 [&_li]:mb-0.5 [&_strong]:font-semibold [&_em]:italic [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground">
+        <div className="prose prose-xs max-w-none text-foreground [&_h1]:text-[1.2em] [&_h1]:font-bold [&_h1]:mb-1 [&_h2]:text-[1.1em] [&_h2]:font-bold [&_h2]:mb-1 [&_h3]:text-[1em] [&_h3]:font-semibold [&_p]:mb-1.5 [&_p]:leading-relaxed [&_ul]:pl-4 [&_ul]:mb-1.5 [&_ol]:pl-4 [&_ol]:mb-1.5 [&_li]:mb-0.5 [&_strong]:font-semibold [&_em]:italic [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground">
           <ReactMarkdown>{value}</ReactMarkdown>
         </div>
       ) : (
-        <span className="text-xs text-muted-foreground/50">Write notes here… (markdown supported)</span>
+        <span className="text-muted-foreground/50">Write notes here… (markdown supported)</span>
       )}
     </div>
   )
@@ -1919,6 +1919,8 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
   const [collapsed, setCollapsed] = useState(true)
   const [editing, setEditing] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [fontSize, setFontSize] = useState(12)
+  const FONT_STEPS = [10, 12, 14, 16, 18, 20]
   const [contentDraft, setContentDraft] = useState(activeNote?.content ?? '')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [width, setWidth] = useState(340)
@@ -1937,7 +1939,9 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
     } else {
       setEditing(false)
     }
-  }, [effectiveId, activeNote?.content])
+  // Only reset when switching to a different note, not on every store save
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveId])
 
   useEffect(() => {
     if (activeNoteId && !notes.find((n) => n.id === activeNoteId)) {
@@ -1983,13 +1987,44 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
     setMenuOpen(false)
   }
 
+  const handleUploadNote = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.md,.txt,text/markdown,text/plain'
+    input.multiple = true
+    input.onchange = () => {
+      Array.from(input.files ?? []).forEach((file) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const content = reader.result as string
+          const baseName = file.name.replace(/\.[^.]+$/, '')
+          const id = addNote(baseName)
+          updateNote(id, { content })
+          onChangeActiveNote(id)
+        }
+        reader.readAsText(file)
+      })
+      setMenuOpen(false)
+    }
+    input.click()
+  }
+
   const handleDeleteNote = (id: string) => {
     deleteNote(id)
     setConfirmDeleteId(null)
   }
 
-  const saveContent = () => {
-    if (effectiveId) updateNote(effectiveId, { content: contentDraft })
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const saveContent = (value?: string) => {
+    const content = value ?? contentDraft
+    if (effectiveId) updateNote(effectiveId, { content })
+  }
+
+  const handleContentChange = (value: string) => {
+    setContentDraft(value)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => saveContent(value), 800)
   }
 
   const noteToDelete = notes.find((n) => n.id === confirmDeleteId)
@@ -2008,7 +2043,7 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
       {/* Header */}
       <div
         onClick={() => { setCollapsed((v) => !v); setMenuOpen(false) }}
-        className={`h-10 shrink-0 flex items-center gap-2 px-3 cursor-pointer transition-colors select-none bg-primary/60 hover:bg-primary border border-border ${collapsed ? 'rounded-xl' : 'rounded-t-xl border-b-0'}`}
+        className={`h-10 shrink-0 flex items-center gap-2 px-3 cursor-pointer transition-colors select-none bg-blue-400 hover:bg-blue-500 border border-blue-500 ${collapsed ? 'rounded-xl' : 'rounded-t-xl border-b-0'}`}
       >
         <span className="text-xs font-semibold text-primary-foreground">Notes</span>
 
@@ -2040,8 +2075,13 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
                     className={`flex items-center gap-1 px-3 py-2 cursor-pointer group ${n.id === effectiveId ? 'bg-accent' : 'hover:bg-muted/50'}`}
                     onClick={() => { onChangeActiveNote(n.id); setMenuOpen(false) }}
                   >
-                    <span className={`flex-1 text-xs truncate ${n.id === effectiveId ? 'text-primary font-medium' : 'text-foreground'}`}>
-                      {noteTitle(n.content)}
+                    <span className="flex-1 min-w-0 flex items-baseline gap-1.5 overflow-hidden">
+                      <span className={`truncate text-xs shrink min-w-0 ${n.id === effectiveId ? 'text-primary font-medium' : 'text-foreground'}`}>
+                        {noteTitle(n.content)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap shrink-0">
+                        {n.createdAt ? new Date(n.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
                     </span>
                     <button
                       className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all shrink-0"
@@ -2054,13 +2094,21 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
                 ))}
               </div>
             )}
-            <div className="px-3 py-2 border-t border-border/50">
+            <div className="border-t border-border/50">
               <button
                 onClick={handleAddNote}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors w-full"
               >
                 <Plus size={13} />
-                New note
+                Add note
+              </button>
+              <button
+                onClick={handleUploadNote}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors w-full border-t border-border/30"
+              >
+                <FileUp size={13} />
+                <span>Upload</span>
+                <span className="text-[10px] text-muted-foreground/60 font-normal">.md · .txt</span>
               </button>
             </div>
           </div>
@@ -2069,7 +2117,7 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
 
       {/* Body */}
       {!collapsed && (
-        <div className="relative rounded-b-xl border border-t-0 border-border bg-popover flex flex-col overflow-hidden" style={{ height: 380 }}>
+        <div className="relative rounded-b-xl border border-t-0 border-border bg-popover flex flex-col overflow-hidden" style={{ height: 475 }}>
 
           {effectiveId ? (
             <>
@@ -2078,17 +2126,38 @@ function NotesPanel({ activeNoteId, onChangeActiveNote }: {
                   key={effectiveId}
                   value={contentDraft}
                   editing={editing}
-                  onChange={setContentDraft}
+                  fontSize={fontSize}
+                  onChange={handleContentChange}
                   onBlur={() => { saveContent() }}
                 />
-                {/* Sticky toggle button */}
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); setEditing((v) => !v) }}
-                  className={`absolute top-2 right-5 p-1.5 rounded-lg border transition-colors z-10 bg-muted/60 ${editing ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
-                  title={editing ? 'Preview' : 'Edit'}
-                >
-                  {editing ? <Eye size={13} /> : <PenLine size={13} />}
-                </button>
+                {/* Sticky controls */}
+                <div className="absolute top-2 right-4 flex flex-col gap-1 z-10">
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); setEditing((v) => !v) }}
+                    className={`p-1.5 rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 ${editing ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                    title={editing ? 'Preview' : 'Edit'}
+                  >
+                    {editing ? <Eye size={13} /> : <PenLine size={13} />}
+                  </button>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setFontSize((s) => { const i = FONT_STEPS.indexOf(s); return FONT_STEPS[Math.min(i + 1, FONT_STEPS.length - 1)] })}
+                    disabled={fontSize === FONT_STEPS[FONT_STEPS.length - 1]}
+                    className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors bg-slate-100 dark:bg-slate-800"
+                    title="Increase text size"
+                  >
+                    <ZoomIn size={13} />
+                  </button>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setFontSize((s) => { const i = FONT_STEPS.indexOf(s); return FONT_STEPS[Math.max(i - 1, 0)] })}
+                    disabled={fontSize === FONT_STEPS[0]}
+                    className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors bg-slate-100 dark:bg-slate-800"
+                    title="Decrease text size"
+                  >
+                    <ZoomOut size={13} />
+                  </button>
+                </div>
               </div>
             </>
           ) : (
