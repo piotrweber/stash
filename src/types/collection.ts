@@ -75,6 +75,12 @@ export interface Schema {
   cardVisibleFields: string[]
 }
 
+export interface Note {
+  id: string
+  name: string
+  content: string
+}
+
 export interface Collection {
   meta: {
     id: string
@@ -83,6 +89,7 @@ export interface Collection {
     createdAt: string
     updatedAt: string
   }
+  notes?: Note[]
   schema: Schema
   items: Item[]
   canvas: {

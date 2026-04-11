@@ -1,9 +1,11 @@
 
-# None
-We need to design a consistent pattern for "none" items workflows:
-- Properites view: items without properties should be somehow more visible
-- Images view: images outside a group could live in a side drawer from which they could be dragged onto a group on the left. When scrollin a group its header could stick to the bottom of the page header collapsed so that we can still drag onto it. This drawers should be also used when we click on + new. Once we implement bulk upload for the image view, all the images will populate this side drawer.
-- Text view: items without a description also should be highlighted
+# Side drawers
+- Properties: edit all propoerties (schema)
+- Images: bulk apload + drag to assign
+
+# Notes
+- can you make that the markdown is propertly formatted as such, so it transform itself when edited 
+
 
 # FIlters
 - Filters should be sticky per project
@@ -18,23 +20,18 @@ We need to design a consistent pattern for "none" items workflows:
 
 
 
-- Change the properties view from cards to rows
-- add a table row with headings: Image, Text, and property names
-- When grouping is active ehac group should repeat 
-- The + New button to the table header
-
 
 # Bulk
 # S
 - After action on selection happened, selections shold applied and clear 
 - The toolbar should occupy the same heih
 
+Adding a property to a row has to assing it to the item
 
 
 # Header
 ## S
 The name of the project is too large
-Remove the Save button
 ## M
 Propose a better arragnement of the tool bar, consider adding it to the side of the project name in a more structured layout
  

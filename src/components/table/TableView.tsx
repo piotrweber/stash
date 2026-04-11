@@ -1,11 +1,12 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal,
+  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal, Eye,
 } from 'lucide-react'
 import {
   DndContext,
@@ -45,6 +46,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   const [overGroup, setOverGroup] = useState<string | null>(null)
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [wide, setWide] = useState(false)
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
 
   const toggleSelect = (id: string) => setSelectedIds((prev) => {
     const next = new Set(prev)
@@ -291,6 +293,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
           </div>
         </div>
 
+        <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={(e) => {
             const top = (e.currentTarget as HTMLDivElement).scrollTop
             setScrolled((prev) => prev ? top > 0 : top > 24)
@@ -409,6 +412,13 @@ export function TableView({ onGoToProjects }: TableViewProps) {
             )}
 
           </div>
+        </div>
+        {viewMode === 'focus' && (
+          <NotesPanel
+            activeNoteId={activeNoteId}
+            onChangeActiveNote={setActiveNoteId}
+          />
+        )}
         </div>
       </div>
 
@@ -1844,6 +1854,277 @@ function ImageCard({ item, onGoToProperties: _onGoToProperties, showLabels: _sho
         </span>
       </button>
     </div>
+  )
+}
+
+// ─── Note editor (textarea ↔ rendered markdown) ──────────────────────────────
+
+function noteTitle(content: string): string {
+  const first = content.split('\n').find((l) => l.trim())
+  if (!first) return 'Untitled'
+  return first.replace(/^#+\s*/, '').trim() || 'Untitled'
+}
+
+function NoteEditor({ value, editing, onChange, onBlur }: {
+  value: string
+  editing: boolean
+  onChange: (v: string) => void
+  onBlur: () => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (editing) textareaRef.current?.focus()
+  }, [editing])
+
+  if (editing) {
+    return (
+      <textarea
+        ref={textareaRef}
+        className="flex-1 resize-none bg-transparent px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none font-mono leading-relaxed w-full"
+        placeholder="Write notes here… (markdown supported)"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+      />
+    )
+  }
+
+  return (
+    <div
+      className="flex-1 overflow-y-auto px-3 py-2 cursor-text min-h-0"
+    >
+      {value ? (
+        <div className="prose prose-xs max-w-none text-xs text-foreground [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mb-1 [&_h2]:text-xs [&_h2]:font-bold [&_h2]:mb-1 [&_h3]:text-xs [&_h3]:font-semibold [&_p]:mb-1.5 [&_p]:leading-relaxed [&_ul]:pl-4 [&_ul]:mb-1.5 [&_ol]:pl-4 [&_ol]:mb-1.5 [&_li]:mb-0.5 [&_strong]:font-semibold [&_em]:italic [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground">
+          <ReactMarkdown>{value}</ReactMarkdown>
+        </div>
+      ) : (
+        <span className="text-xs text-muted-foreground/50">Write notes here… (markdown supported)</span>
+      )}
+    </div>
+  )
+}
+
+// ─── Notes panel ─────────────────────────────────────────────────────────────
+
+function NotesPanel({ activeNoteId, onChangeActiveNote }: {
+  activeNoteId: string | null
+  onChangeActiveNote: (id: string | null) => void
+}) {
+  const { collection, addNote, updateNote, deleteNote } = useCollectionStore()
+  const notes = collection?.notes ?? []
+  const activeNote = notes.find((n) => n.id === activeNoteId) ?? notes[0] ?? null
+  const effectiveId = activeNote?.id ?? null
+
+  const [collapsed, setCollapsed] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [contentDraft, setContentDraft] = useState(activeNote?.content ?? '')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [width, setWidth] = useState(340)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(0)
+
+  const pendingEditRef = useRef(false)
+
+  useEffect(() => {
+    setContentDraft(activeNote?.content ?? '')
+    if (pendingEditRef.current) {
+      setEditing(true)
+      pendingEditRef.current = false
+    } else {
+      setEditing(false)
+    }
+  }, [effectiveId, activeNote?.content])
+
+  useEffect(() => {
+    if (activeNoteId && !notes.find((n) => n.id === activeNoteId)) {
+      onChangeActiveNote(notes[0]?.id ?? null)
+    } else if (!activeNoteId && notes.length > 0) {
+      onChangeActiveNote(notes[0].id)
+    }
+  }, [notes, activeNoteId, onChangeActiveNote])
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        menuBtnRef.current && !menuBtnRef.current.contains(e.target as Node)
+      ) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    dragStartX.current = e.clientX
+    dragStartWidth.current = width
+    const onMouseMove = (ev: MouseEvent) => {
+      const delta = dragStartX.current - ev.clientX
+      setWidth(Math.max(260, Math.min(800, dragStartWidth.current + delta)))
+    }
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }
+
+  const handleAddNote = () => {
+    pendingEditRef.current = true
+    const id = addNote('New note')
+    onChangeActiveNote(id)
+    setMenuOpen(false)
+  }
+
+  const handleDeleteNote = (id: string) => {
+    deleteNote(id)
+    setConfirmDeleteId(null)
+  }
+
+  const saveContent = () => {
+    if (effectiveId) updateNote(effectiveId, { content: contentDraft })
+  }
+
+  const noteToDelete = notes.find((n) => n.id === confirmDeleteId)
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', bottom: 24, right: 24, width, zIndex: 200 }}
+      className="flex flex-col shadow-2xl"
+    >
+      {/* Left resize handle */}
+      <div
+        onMouseDown={handleResizeMouseDown}
+        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 6, cursor: 'ew-resize', zIndex: 10 }}
+      />
+
+      {/* Header */}
+      <div
+        onClick={() => { setCollapsed((v) => !v); setMenuOpen(false) }}
+        className={`h-10 shrink-0 flex items-center gap-2 px-3 cursor-pointer transition-colors select-none bg-primary/60 hover:bg-primary border border-border ${collapsed ? 'rounded-xl' : 'rounded-t-xl border-b-0'}`}
+      >
+        <span className="text-xs font-semibold text-primary-foreground">Notes</span>
+
+        {/* Manage button — only when expanded */}
+        {!collapsed && (
+          <button
+            ref={menuBtnRef}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v) }}
+            className={`p-1.5 rounded transition-colors ${menuOpen ? 'text-primary-foreground' : 'text-primary-foreground/70 hover:text-primary-foreground'}`}
+            title="Manage notes"
+          >
+            <SlidersHorizontal size={14} />
+          </button>
+        )}
+
+        {/* Manage dropdown — floats below header, normal height */}
+        {!collapsed && menuOpen && (
+          <div
+            ref={menuRef}
+            onClick={(e) => e.stopPropagation()}
+            style={{ position: 'absolute', top: 40, left: 0, right: 0, zIndex: 20 }}
+            className="bg-popover border border-border rounded-b-xl shadow-lg overflow-hidden"
+          >
+            {notes.length > 0 && (
+              <div className="py-1 max-h-48 overflow-y-auto">
+                {notes.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`flex items-center gap-1 px-3 py-2 cursor-pointer group ${n.id === effectiveId ? 'bg-accent' : 'hover:bg-muted/50'}`}
+                    onClick={() => { onChangeActiveNote(n.id); setMenuOpen(false) }}
+                  >
+                    <span className={`flex-1 text-xs truncate ${n.id === effectiveId ? 'text-primary font-medium' : 'text-foreground'}`}>
+                      {noteTitle(n.content)}
+                    </span>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(n.id); setMenuOpen(false) }}
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="px-3 py-2 border-t border-border/50">
+              <button
+                onClick={handleAddNote}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
+              >
+                <Plus size={13} />
+                New note
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      {!collapsed && (
+        <div className="relative rounded-b-xl border border-t-0 border-border bg-popover flex flex-col overflow-hidden" style={{ height: 380 }}>
+
+          {effectiveId ? (
+            <>
+              <div className="relative flex-1 min-h-0 flex flex-col">
+                <NoteEditor
+                  key={effectiveId}
+                  value={contentDraft}
+                  editing={editing}
+                  onChange={setContentDraft}
+                  onBlur={() => { saveContent() }}
+                />
+                {/* Sticky toggle button */}
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); setEditing((v) => !v) }}
+                  className={`absolute top-2 right-5 p-1.5 rounded-lg border transition-colors z-10 bg-muted/60 ${editing ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                  title={editing ? 'Preview' : 'Edit'}
+                >
+                  {editing ? <Eye size={13} /> : <PenLine size={13} />}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground/60">
+              <span className="text-xs">No notes yet</span>
+              <button onClick={handleAddNote} className="text-xs text-primary hover:underline">+ New note</button>
+            </div>
+          )}
+
+          {/* Delete confirmation overlay */}
+          {confirmDeleteId && noteToDelete && (
+            <div className="absolute inset-0 bg-popover/95 flex flex-col items-center justify-center px-6 gap-4">
+              <p className="text-sm text-foreground text-center">
+                Delete <span className="font-semibold">"{noteToDelete.name}"</span>?
+              </p>
+              <p className="text-xs text-muted-foreground text-center">This cannot be undone.</p>
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={() => handleDeleteNote(confirmDeleteId)}
+                  className="flex-1 text-xs font-medium px-3 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="flex-1 text-xs font-medium px-3 py-2 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>,
+    document.body,
   )
 }
 

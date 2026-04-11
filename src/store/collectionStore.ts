@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { nanoid } from 'nanoid'
 import type {
-  Collection, Item, Field, Frame,
+  Collection, Item, Field, Frame, Note,
   CanvasPosition, ViewStateTable, ViewStateBoard, ViewStateCanvas,
 } from '../types/collection'
 import { createSampleCollection } from '../data/sampleCollection'
@@ -54,6 +54,11 @@ interface CollectionStore {
   setTableState: (patch: Partial<ViewStateTable>) => void
   setBoardState: (patch: Partial<ViewStateBoard>) => void
   setCanvasState: (patch: Partial<ViewStateCanvas>) => void
+
+  // Notes
+  addNote: (name: string) => string
+  updateNote: (id: string, patch: { name?: string; content?: string }) => void
+  deleteNote: (id: string) => void
 
   // Legacy compat
   loadSample: () => void
@@ -571,6 +576,34 @@ export const useCollectionStore = create<CollectionStore>()(
       if (!s.collection) return s
       const updated = touch({ ...s.collection, views: { ...s.collection.views, canvas: { ...s.collection.views.canvas, ...patch } } })
       return sync(s, updated)
+    }),
+
+  addNote: (name) => {
+    const id = nanoid()
+    set((s) => {
+      if (!s.collection) return s
+      const note: Note = { id, name, content: '# Untitled\n' }
+      const updated = { ...s.collection, notes: [...(s.collection.notes ?? []), note] }
+      return sync(s, touch(updated))
+    })
+    return id
+  },
+
+  updateNote: (id, patch) =>
+    set((s) => {
+      if (!s.collection) return s
+      const updated = {
+        ...s.collection,
+        notes: (s.collection.notes ?? []).map((n) => n.id === id ? { ...n, ...patch } : n),
+      }
+      return sync(s, touch(updated))
+    }),
+
+  deleteNote: (id) =>
+    set((s) => {
+      if (!s.collection) return s
+      const updated = { ...s.collection, notes: (s.collection.notes ?? []).filter((n) => n.id !== id) }
+      return sync(s, touch(updated))
     }),
 
   loadSample: () => {
