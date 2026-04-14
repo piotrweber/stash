@@ -1,12 +1,13 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ChevronLeft, ChevronDown, ChevronRight, Trash2, X, GripVertical, ImageUp,
-  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal, Eye, FileUp,
+  ZoomOut, ZoomIn, Image, PenLine, ChevronsUp, ChevronsDown, Plus, ArrowLeftRight, MessageSquare, SlidersHorizontal, Eye, FileUp, House,
 } from 'lucide-react'
 import {
   DndContext,
@@ -18,7 +19,7 @@ import {
   useDroppable,
 } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { SortableContext, rectSortingStrategy, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useCollectionStore } from '../../store/collectionStore'
 import { FilterSortBar } from '../shared/FilterSortBar'
@@ -38,7 +39,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
   const [zoom, setZoom] = useState(1)
   const [allCollapsed, setAllCollapsed] = useState<boolean | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [scrolled, setScrolled] = useState(false)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollToId, setScrollToId] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<string | null>(null)
@@ -190,18 +191,15 @@ export function TableView({ onGoToProjects }: TableViewProps) {
 
         {/* ── Fixed header ── */}
         <div className="shrink-0 bg-background border-b border-border">
-          {/* Collapsible title row */}
-          <div
-            className="overflow-hidden transition-all duration-200 ease-in-out"
-            style={{ maxHeight: scrolled ? 0 : 200, opacity: scrolled ? 0 : 1 }}
-          >
-            <div className="max-w-4xl mx-auto px-10 pt-7 pb-4">
+          {/* Title row */}
+          <div className="max-w-4xl mx-auto px-10 pt-3 pb-2">
+            <div className="flex items-center gap-2">
               <button
                 onClick={onGoToProjects}
-                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary transition-colors mb-3"
+                className="text-muted-foreground hover:text-primary transition-colors"
+                title="Projects"
               >
-                <ChevronLeft size={13} />
-                Projects
+                <House size={14} />
               </button>
               <ProjectTitleInput
                 value={collection.meta.name}
@@ -211,7 +209,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
           </div>
 
           {/* Primary toolbar */}
-          <div className="max-w-4xl mx-auto px-10 pb-2.5" style={{ paddingTop: scrolled ? 10 : 0 }}>
+          <div className="max-w-4xl mx-auto px-10 pb-2.5">
             {selectedIds.size > 0 ? (
               <BulkActionBar
                 count={selectedIds.size}
@@ -294,10 +292,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
         </div>
 
         <div className="flex-1 flex min-h-0">
-        <div className="flex-1 overflow-y-auto" ref={scrollRef} onScroll={(e) => {
-            const top = (e.currentTarget as HTMLDivElement).scrollTop
-            setScrolled((prev) => prev ? top > 0 : top > 24)
-          }}>
+        <div className="flex-1 overflow-y-auto" ref={scrollRef}>
           <div className={`${wide ? 'max-w-full' : 'max-w-4xl'} mx-auto px-10 transition-all duration-200`}>
 
             {/* ── Draft new item row (sticky) ── */}
@@ -436,6 +431,7 @@ export function TableView({ onGoToProjects }: TableViewProps) {
           onClose={() => setSelectedImageId(null)}
         />
       )}
+      {viewMode === 'catalogue' && <SchemaPanel />}
     </DndContext>
   )
 }
@@ -1744,7 +1740,7 @@ function ProjectTitleInput({ value, onSave }: { value: string; onSave: (v: strin
         if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
         if (e.key === 'Escape') { setDraft(value); (e.target as HTMLInputElement).blur() }
       }}
-      className="block w-full bg-transparent border-none outline-none font-serif text-3xl font-bold text-foreground placeholder:text-muted-foreground/60 leading-tight"
+      className="block w-full bg-transparent border-none outline-none font-sans text-xl font-semibold text-foreground placeholder:text-muted-foreground/60 leading-tight"
       placeholder="Untitled"
     />
   )
@@ -1865,6 +1861,380 @@ function noteTitle(content: string): string {
   return first.replace(/^#+\s*/, '').trim() || 'Untitled'
 }
 
+// ─── Schema panel ─────────────────────────────────────────────────────────────
+
+function SchemaOptionRow({ opt, field, expanded, onToggle, onRename, onDelete }: {
+  opt: string
+  field: Field
+  expanded: boolean
+  onToggle: () => void
+  onRename: (oldName: string, newName: string) => void
+  onDelete: (opt: string) => void
+}) {
+  const { updateField } = useCollectionStore()
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt })
+  const [nameDraft, setNameDraft] = useState(opt)
+  const [desc, setDesc] = useState(field.optionDescriptions?.[opt] ?? '')
+  const chipStyle = optionStyle(field.optionColors?.[opt])
+
+  useEffect(() => { setNameDraft(opt) }, [opt])
+  useEffect(() => { setDesc(field.optionDescriptions?.[opt] ?? '') }, [opt, field.optionDescriptions])
+
+  const commitRename = () => {
+    const trimmed = nameDraft.trim()
+    if (trimmed && trimmed !== opt) onRename(opt, trimmed)
+  }
+
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }}>
+      <div className="flex items-center gap-1.5 py-1 group">
+        <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground/30 hover:text-muted-foreground shrink-0">
+          <GripVertical size={11} />
+        </button>
+        <button
+          onClick={onToggle}
+          style={chipStyle}
+          className="w-3.5 h-3.5 rounded-sm border shrink-0 transition-transform hover:scale-110"
+          title="Edit color & description"
+        />
+        <input
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+          className="flex-1 text-[11px] bg-transparent outline-none text-foreground min-w-0"
+        />
+        <button
+          onClick={() => onDelete(opt)}
+          className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition-all shrink-0"
+        >
+          <X size={11} />
+        </button>
+      </div>
+      {expanded && (
+        <div className="ml-7 mb-2 flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-1">
+            {COLOR_KEYS.map((ck) => {
+              const s = optionStyle(ck)
+              const isActive = (field.optionColors?.[opt] ?? 'gray') === ck
+              return (
+                <button
+                  key={ck}
+                  onClick={() => { updateField(field.id, { optionColors: { ...(field.optionColors ?? {}), [opt]: ck } }); onToggle() }}
+                  style={{ backgroundColor: s.backgroundColor, borderColor: isActive ? s.color : s.borderColor }}
+                  className={`w-4 h-4 rounded border-2 transition-all ${isActive ? 'scale-110' : 'hover:scale-105'}`}
+                />
+              )
+            })}
+          </div>
+          <textarea
+            value={desc}
+            onChange={(e) => {
+              setDesc(e.target.value)
+              updateField(field.id, { optionDescriptions: { ...(field.optionDescriptions ?? {}), [opt]: e.target.value } })
+            }}
+            placeholder="Description…"
+            rows={2}
+            className="w-full border border-border rounded px-2 py-1 text-[11px] bg-background resize-none focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/40"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SchemaOptionsEditor({ field }: { field: Field }) {
+  const { updateField, renameOption, deleteOption } = useCollectionStore()
+  const [localOpts, setLocalOpts] = useState(field.options)
+  const [expandedOpt, setExpandedOpt] = useState<string | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  useEffect(() => { setLocalOpts(field.options) }, [field.options])
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return
+    const oldIdx = localOpts.indexOf(e.active.id as string)
+    const newIdx = localOpts.indexOf(e.over.id as string)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(localOpts, oldIdx, newIdx)
+    setLocalOpts(reordered)
+    updateField(field.id, { options: reordered })
+  }
+
+  const addOption = () => {
+    const newOpt = `Option ${localOpts.length + 1}`
+    const updated = [...localOpts, newOpt]
+    setLocalOpts(updated)
+    updateField(field.id, { options: updated })
+  }
+
+  return (
+    <div className="pl-8 pr-3 pb-2 border-b border-border/30">
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <SortableContext items={localOpts} strategy={verticalListSortingStrategy}>
+          {localOpts.map((opt) => (
+            <SchemaOptionRow
+              key={opt}
+              opt={opt}
+              field={field}
+              expanded={expandedOpt === opt}
+              onToggle={() => setExpandedOpt(expandedOpt === opt ? null : opt)}
+              onRename={(old, next) => {
+                setLocalOpts((prev) => prev.map((o) => (o === old ? next : o)))
+                renameOption(field.id, old, next)
+                if (expandedOpt === old) setExpandedOpt(next)
+              }}
+              onDelete={(o) => {
+                setLocalOpts((prev) => prev.filter((lo) => lo !== o))
+                deleteOption(field.id, o)
+                if (expandedOpt === o) setExpandedOpt(null)
+              }}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+      <button
+        onClick={addOption}
+        className="flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-primary transition-colors mt-0.5"
+      >
+        <Plus size={11} />
+        Add option
+      </button>
+    </div>
+  )
+}
+
+function SchemaFieldRow({ field, expanded, onToggle, onDelete }: {
+  field: Field
+  expanded: boolean
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  const { updateField, updateItem, collection } = useCollectionStore()
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: field.id })
+  const [nameDraft, setNameDraft] = useState(field.name)
+  const [showTypeMenu, setShowTypeMenu] = useState(false)
+  const hasOptions = field.type === 'select' || field.type === 'multi-select'
+
+  useEffect(() => { setNameDraft(field.name) }, [field.name])
+
+  const commitRename = () => {
+    const trimmed = nameDraft.trim()
+    if (trimmed && trimmed !== field.name) updateField(field.id, { name: trimmed })
+  }
+
+  const handleTypeChange = (type: Field['type']) => {
+    updateField(field.id, { type, options: type === 'select' || type === 'multi-select' ? field.options : [] })
+    // Clear values incompatible with new type
+    if (type === 'number') {
+      collection?.items.forEach((item) => {
+        const v = item.fields[field.id]
+        if (v !== null && typeof v !== 'number') updateItem(item.id, { fields: { ...item.fields, [field.id]: null } })
+      })
+    }
+    setShowTypeMenu(false)
+  }
+
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }}>
+      <div className="flex items-center gap-1.5 px-3 py-2 hover:bg-muted/30 group transition-colors">
+        <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground/30 hover:text-muted-foreground shrink-0">
+          <GripVertical size={13} />
+        </button>
+        {hasOptions ? (
+          <button onClick={onToggle} className="shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors">
+            <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
+          </button>
+        ) : (
+          <span className="w-[13px] shrink-0" />
+        )}
+        <input
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+          className="flex-1 min-w-0 text-xs bg-transparent outline-none text-foreground"
+        />
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setShowTypeMenu((v) => !v)}
+            className="text-[10px] font-mono text-muted-foreground/50 hover:text-muted-foreground border border-transparent hover:border-border rounded px-1 transition-colors"
+          >
+            {field.type}
+          </button>
+          {showTypeMenu && (
+            <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg overflow-hidden shadow-lg w-32 py-1">
+              {FIELD_TYPES.map(({ type: t, label }) => (
+                <button
+                  key={t}
+                  onClick={() => handleTypeChange(t)}
+                  className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${field.type === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onDelete}
+          className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition-all shrink-0"
+          title="Delete field"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+      {expanded && hasOptions && <SchemaOptionsEditor field={field} />}
+    </div>
+  )
+}
+
+function SchemaPanel() {
+  const { collection, addField, deleteField, reorderFields } = useCollectionStore()
+  const fields = collection?.schema.fields ?? []
+
+  const [collapsed, setCollapsed] = useState(true)
+  const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null)
+  const [width, setWidth] = useState(360)
+  const [addingField, setAddingField] = useState(false)
+  const [newFieldName, setNewFieldName] = useState('')
+  const [newFieldType, setNewFieldType] = useState<Field['type']>('select')
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(0)
+  const newFieldInputRef = useRef<HTMLInputElement>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    dragStartX.current = e.clientX
+    dragStartWidth.current = width
+    const onMouseMove = (ev: MouseEvent) => {
+      const delta = dragStartX.current - ev.clientX
+      setWidth(Math.max(280, Math.min(800, dragStartWidth.current + delta)))
+    }
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }
+
+  const handleFieldDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return
+    const oldIdx = fields.findIndex((f) => f.id === e.active.id)
+    const newIdx = fields.findIndex((f) => f.id === e.over!.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    reorderFields(arrayMove(fields, oldIdx, newIdx).map((f) => f.id))
+  }
+
+  const handleAddField = () => {
+    if (!newFieldName.trim()) return
+    addField({ name: newFieldName.trim(), type: newFieldType, options: [] })
+    setNewFieldName('')
+    setNewFieldType('select')
+    setAddingField(false)
+  }
+
+  useEffect(() => {
+    if (addingField) newFieldInputRef.current?.focus()
+  }, [addingField])
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', bottom: 24, right: 24, width, zIndex: 200 }}
+      className="flex flex-col shadow-2xl"
+    >
+      {/* Left resize handle */}
+      <div
+        onMouseDown={handleResizeMouseDown}
+        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 6, cursor: 'ew-resize', zIndex: 10 }}
+      />
+
+      {/* Header */}
+      <div
+        onClick={() => { setCollapsed((v) => !v); setAddingField(false) }}
+        className={`h-10 shrink-0 flex items-center gap-2 px-3 cursor-pointer transition-colors select-none bg-blue-400 hover:bg-blue-500 border border-blue-500 ${collapsed ? 'rounded-xl' : 'rounded-t-xl border-b-0'}`}
+      >
+        <span className="text-xs font-semibold text-white">Schema</span>
+        <span className="text-[10px] text-white/60 font-normal">{fields.length} field{fields.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {/* Body */}
+      {!collapsed && (
+        <div className="rounded-b-xl border border-t-0 border-border bg-popover flex flex-col overflow-hidden" style={{ height: 475 }}>
+          {/* Add property */}
+          <div className="shrink-0 border-b border-border/50 px-3 py-2">
+            {addingField ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  ref={newFieldInputRef}
+                  value={newFieldName}
+                  onChange={(e) => setNewFieldName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddField()
+                    if (e.key === 'Escape') { setAddingField(false); setNewFieldName('') }
+                  }}
+                  placeholder="Property name"
+                  className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-background text-foreground focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/50"
+                />
+                <div className="flex flex-col gap-0.5">
+                  {FIELD_TYPES.map(({ type: t, label }) => (
+                    <button
+                      key={t}
+                      onClick={() => setNewFieldType(t)}
+                      className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${newFieldType === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="secondary" onClick={handleAddField} disabled={!newFieldName.trim()} className="flex-1 h-7 text-xs">Add</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setAddingField(false); setNewFieldName('') }} className="flex-1 h-7 text-xs text-muted-foreground">Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); setAddingField(true) }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Plus size={13} />
+                Add property
+              </button>
+            )}
+          </div>
+
+          {/* Fields list */}
+          <div className="flex-1 overflow-y-auto">
+            {fields.length === 0 && !addingField && (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground/50">
+                <span className="text-xs">No properties yet</span>
+              </div>
+            )}
+            <DndContext sensors={sensors} onDragEnd={handleFieldDragEnd}>
+              <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                {fields.map((field) => (
+                  <SchemaFieldRow
+                    key={field.id}
+                    field={field}
+                    expanded={expandedFieldId === field.id}
+                    onToggle={() => setExpandedFieldId(expandedFieldId === field.id ? null : field.id)}
+                    onDelete={() => { deleteField(field.id); if (expandedFieldId === field.id) setExpandedFieldId(null) }}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body,
+  )
+}
+
+// ─── Note editor (textarea ↔ rendered markdown) ──────────────────────────────
+
 function NoteEditor({ value, editing, fontSize, onChange, onBlur }: {
   value: string
   editing: boolean
@@ -1895,8 +2265,8 @@ function NoteEditor({ value, editing, fontSize, onChange, onBlur }: {
   return (
     <div className="flex-1 overflow-y-auto pl-3 pr-12 py-2 cursor-text min-h-0" style={{ fontSize }}>
       {value ? (
-        <div className="prose prose-xs max-w-none text-foreground [&_h1]:text-[1.2em] [&_h1]:font-bold [&_h1]:mb-1 [&_h2]:text-[1.1em] [&_h2]:font-bold [&_h2]:mb-1 [&_h3]:text-[1em] [&_h3]:font-semibold [&_p]:mb-1.5 [&_p]:leading-relaxed [&_ul]:pl-4 [&_ul]:mb-1.5 [&_ol]:pl-4 [&_ol]:mb-1.5 [&_li]:mb-0.5 [&_strong]:font-semibold [&_em]:italic [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground">
-          <ReactMarkdown>{value}</ReactMarkdown>
+        <div className="prose prose-xs max-w-none text-foreground [&_h1]:text-[1.2em] [&_h1]:font-bold [&_h1]:mb-1 [&_h2]:text-[1.1em] [&_h2]:font-bold [&_h2]:mb-1 [&_h3]:text-[1em] [&_h3]:font-semibold [&_p]:mb-1.5 [&_p]:leading-relaxed [&_ul]:pl-4 [&_ul]:mb-1.5 [&_ol]:pl-4 [&_ol]:mb-1.5 [&_li]:mb-0.5 [&_strong]:font-semibold [&_em]:italic [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-2 [&_blockquote]:text-muted-foreground [&_table]:w-full [&_table]:border-collapse [&_table]:mb-2 [&_th]:text-left [&_th]:px-2 [&_th]:py-1 [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:font-semibold [&_td]:px-2 [&_td]:py-1 [&_td]:border [&_td]:border-border [&_tr:nth-child(even)_td]:bg-muted/20">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
         </div>
       ) : (
         <span className="text-muted-foreground/50">Write notes here… (markdown supported)</span>

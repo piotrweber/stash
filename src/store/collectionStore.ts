@@ -289,11 +289,35 @@ export const useCollectionStore = create<CollectionStore>()(
 
   loadProjectFile: (json) => {
     const col = JSON.parse(json) as Collection
+    // Normalize missing top-level fields
+    if (!col.canvas) col.canvas = { frames: [] }
+    if (!col.canvas.frames) col.canvas.frames = []
+    if (!col.notes) col.notes = []
+    if (!col.schema.cardVisibleFields) col.schema.cardVisibleFields = []
     // Normalize missing view fields
+    if (!col.views) col.views = { table: { sortBy: null, sortDir: 'asc', filters: [] }, board: { groupBy: null, sortBy: null, sortDir: 'asc', filters: [] }, canvas: { zoom: 1, panX: 0, panY: 0, activeFilters: [], groupBy: null, stackPositions: {} } }
+    if (!col.views.table) col.views.table = { sortBy: null, sortDir: 'asc', filters: [] }
+    if (col.views.table.sortBy === undefined) col.views.table.sortBy = null
+    if (!col.views.table.sortDir) col.views.table.sortDir = 'asc'
+    if (!col.views.table.filters) col.views.table.filters = []
+    if (!col.views.board) col.views.board = { groupBy: null, sortBy: null, sortDir: 'asc', filters: [] }
     if (!col.views.board.sortDir) col.views.board.sortDir = 'asc'
     if (!col.views.board.filters) col.views.board.filters = []
+    if (!col.views.canvas) col.views.canvas = { zoom: 1, panX: 0, panY: 0, activeFilters: [], groupBy: null, stackPositions: {} }
     if (!col.views.canvas.stackPositions) col.views.canvas.stackPositions = {}
     if (col.views.canvas.groupBy === undefined) col.views.canvas.groupBy = null
+    // Normalize items
+    col.items = (col.items ?? []).map((item) => ({
+      ...item,
+      fields: item.fields ?? {},
+      canvas: item.canvas ?? { x: 0, y: 0 },
+      revisions: item.revisions ?? [],
+    }))
+    // Normalize schema fields
+    col.schema.fields = (col.schema.fields ?? []).map((f) => ({
+      ...f,
+      options: f.options ?? [],
+    }))
     set((s) => {
       const existing = s.projects.findIndex((p) => p.meta.id === col.meta.id)
       const projects = existing >= 0
